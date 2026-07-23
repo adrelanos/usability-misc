@@ -1157,11 +1157,14 @@ capitalize_first_char(){
 ## Copyright (C) 2025 - 2025 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
 ## See the file COPYING for copying conditions.
 
-# shellcheck source=/usr/libexec/helper-scripts/get_colors.sh
+## style-ok: no-strict -- sourced library; a top-level strict-mode block
+## would leak 'set -o errexit'/'nounset' into the sourcing shell.
+
+# shellcheck source=./get_colors.sh
 ##### SKIP duplicate source import from file /usr/libexec/helper-scripts/get_colors.sh
-# shellcheck source=/usr/libexec/helper-scripts/strings.bsh
+# shellcheck source=./strings.bsh
 ##### SKIP duplicate source import from file /usr/libexec/helper-scripts/strings.bsh
-# shellcheck source=/usr/libexec/helper-scripts/xtrace.bsh
+# shellcheck source=./xtrace.bsh
 ##### BEGIN pasted by build-dist-installer-cli from file /usr/libexec/helper-scripts/xtrace.bsh
 #!/bin/bash
 
@@ -1230,9 +1233,9 @@ output_cmd_set() {
    fi
 }
 ##### END pasted by build-dist-installer-cli from file /usr/libexec/helper-scripts/xtrace.bsh
-# shellcheck source=/usr/libexec/helper-scripts/has.sh
+# shellcheck source=./has.sh
 ##### SKIP duplicate source import from file /usr/libexec/helper-scripts/has.sh
-# shellcheck source=/usr/libexec/helper-scripts/trace.bsh
+# shellcheck source=./trace.bsh
 ##### BEGIN pasted by build-dist-installer-cli from file /usr/libexec/helper-scripts/trace.bsh
 #!/bin/bash
 
@@ -1397,15 +1400,33 @@ xtrace_reenable_maybe() {
 
 __log_level_num() {
   case "${1:-notice}" in
-    bug|error) printf '%s' 0 ;;
-    question)  printf '%s' 0 ;;
-    warn)      printf '%s' 1 ;;
-    notice)    printf '%s' 2 ;;
-    info)      printf '%s' 3 ;;
-    debug)     printf '%s' 4 ;;
-    echo)      printf '%s' 5 ;;
-    null)      printf '%s' 6 ;;
-    *)         printf '%s' 2 ;; ## unknown -> treat as notice
+    bug|error)
+      printf '%s' 0
+      ;;
+    question)
+      printf '%s' 0
+      ;;
+    warn)
+      printf '%s' 1
+      ;;
+    notice)
+      printf '%s' 2
+      ;;
+    info)
+      printf '%s' 3
+      ;;
+    debug)
+      printf '%s' 4
+      ;;
+    echo)
+      printf '%s' 5
+      ;;
+    null)
+      printf '%s' 6
+      ;;
+    *)
+      printf '%s' 2 ## unknown -> treat as notice
+      ;;
   esac
   return 0
 }
@@ -1623,6 +1644,11 @@ ${underline}Non-Root Check:${nounderline} Running as root.
 ## Copyright (C) 2025 - 2025 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
 ## See the file COPYING for copying conditions.
 
+## style-ok: no-strict -- sourced library; a top-level strict-mode block
+## would leak 'set -o errexit'/'nounset' into the sourcing shell.
+## style-ok: no-has -- root_cmd() below uses 'command -v' to RESOLVE a
+## command's path (has returns only a boolean); has is used elsewhere.
+
 ##### SKIP duplicate source import from file /usr/libexec/helper-scripts/get_colors.sh
 ##### SKIP duplicate source import from file /usr/libexec/helper-scripts/log_run_die.sh
 
@@ -1682,8 +1708,12 @@ get_su_cmd(){
 - su"
     }
     case "${sucmd}" in
-      sudo) :;;
-      *) log warn "Using sucmd '$sucmd'. Consider installation of 'sudo' instead to cache your passwords instead of typing them every time.";;
+      sudo)
+        true
+        ;;
+      *)
+        log warn "Using sucmd '$sucmd'. Consider installation of 'sudo' instead to cache your passwords instead of typing them every time."
+        ;;
     esac
   done
 
@@ -1724,7 +1754,7 @@ test_run_as_target_user() {
   ## root_output would catch xtrace and hence variable root_output would be non-empty.
   ## Therefore disabling xtrace.
   disable_xtrace
-  trap 'xtrace_reenable_maybe' RETURN
+  trap xtrace_reenable_maybe RETURN
   root_output="$(run_as_target_user timeout --kill-after 5 5 test -d /usr 2>&1)"
   if test -n "${root_output}"; then
     die 1 "${underline}test_run_as_target_user:${nounderline} 'sudo -u ${target_user}' test produced unexpected output: '${root_output}'"
@@ -1806,6 +1836,9 @@ is_addr_port(){
 ## Copyright (C) 2025 - 2025 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
 ## See the file COPYING for copying conditions.
 
+## style-ok: no-strict -- sourced library; a top-level strict-mode block
+## would leak 'set -o errexit'/'nounset' into the sourcing shell.
+
 ## TODO: how to handle installer specific code?
 
 ##### SKIP duplicate source import from file /usr/libexec/helper-scripts/has.sh
@@ -1828,16 +1861,36 @@ get_os(){
   arch=""
   if has dpkg; then
     case "$(dpkg --print-architecture)" in
-      amd64) arch="x86_64" ;;
-      i386)  arch="i686" ;;
-      arm64) arch="aarch64" ;;
-      armhf) arch="armv7l" ;;
-      armel) arch="armv6l" ;;
-      ppc64el) arch="ppc64le" ;;
-      riscv64) arch="riscv64" ;;
-      s390x) arch="s390x" ;;
-      "") arch="" ;;
-      *) arch="" ;;
+      amd64)
+        arch="x86_64"
+        ;;
+      i386)
+        arch="i686"
+        ;;
+      arm64)
+        arch="aarch64"
+        ;;
+      armhf)
+        arch="armv7l"
+        ;;
+      armel)
+        arch="armv6l"
+        ;;
+      ppc64el)
+        arch="ppc64le"
+        ;;
+      riscv64)
+        arch="riscv64"
+        ;;
+      s390x)
+        arch="s390x"
+        ;;
+      "")
+        arch=""
+        ;;
+      *)
+        arch=""
+        ;;
     esac
   fi
   if [ -z "${arch}" ]; then
@@ -1871,19 +1924,35 @@ get_os(){
       fi
       distro="${distro##[\"\']}"
       distro="${distro%%[\"\']}"
-      case "${PATH}" in (*/bedrock/cross/*) distro='Bedrock Linux' ;; esac
+      case "${PATH}" in
+        (*/bedrock/cross/*)
+          distro='Bedrock Linux'
+          ;;
+      esac
       if [ "${WSLENV:-}" ]; then
         distro="${distro}${WSLENV+ on Windows 10 [WSL2]}"
       elif [ -z "${kernel%%*-Microsoft}" ]; then
         distro="${distro} on Windows 10 [WSL1]"
       fi
     ;;
-    Haiku) distro=$(uname -sv);;
-    Minix|DragonFly) distro="${os} ${kernel}";;
-    SunOS) IFS='(' read -r distro _ < /etc/release;;
-    OpenBSD*) distro="$(uname -sr)";;
-    FreeBSD) distro="${os} $(freebsd-version)";;
-    *) distro="${os} ${kernel}";;
+    Haiku)
+      distro=$(uname -sv)
+      ;;
+    Minix|DragonFly)
+      distro="${os} ${kernel}"
+      ;;
+    SunOS)
+      IFS='(' read -r distro _ < /etc/release
+      ;;
+    OpenBSD*)
+      distro="$(uname -sr)"
+      ;;
+    FreeBSD)
+      distro="${os} $(freebsd-version)"
+      ;;
+    *)
+      distro="${os} ${kernel}"
+      ;;
   esac
 
   ## Debian 'testing' /etc/os-release does not contain VERSION_ID.
