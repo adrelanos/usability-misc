@@ -4,33 +4,46 @@
 ## See the file COPYING for copying conditions.
 
 set -x
+set -o errexit
+set -o nounset
 set -o pipefail
+set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+
+## Both are supplied by the derivative-maker build environment and are absent
+## when this script is run on its own, so default them before first use.
+[ -v DIST_APTGETOPT ] || DIST_APTGETOPT=()
+apt_unattended_opts="${apt_unattended_opts:-}"
 
 error_handler() {
-   echo "
-####################
-## ERROR detected. #
-####################
-"
+   printf '%s\n' "" \
+      "####################" \
+      "## ERROR detected. #" \
+      "####################" \
+      ""
 
    exit 1
 }
 
-trap "error_handler" ERR
+trap error_handler ERR
 
 mkdir --parents -- ~/sources
 
 cd -- ~/sources
 
+## apt_unattended_opts is a deliberately word-split option list.
+# shellcheck disable=SC2086
 apt-get \
    "${DIST_APTGETOPT[@]}" \
-   $apt_unattended_opts \
+   ${apt_unattended_opts} \
    update
 
 for i in $(damngpl --source /var/lib/dpkg/status); do
+   # shellcheck disable=SC2086
    apt-get \
       "${DIST_APTGETOPT[@]}" \
-      $apt_unattended_opts \
+      ${apt_unattended_opts} \
       --download-only \
-      source "$i"
+      source "${i}"
 done
