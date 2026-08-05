@@ -1,13 +1,22 @@
-#!/bin/sh
+#!/bin/bash
 
 ## Copyright (c) 2019 - 2025 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
 ## See the file COPYING for copying conditions.
 
 #set -x
 
+## The 'echo' and 'read' calls below are inside quoted printf payloads: they are
+## GRUB script emitted into grub.cfg, not shell commands run by this script.
+## style-ok: allow-echo
+
 true "usability-misc $0: START"
 
-set -e
+set -o errexit
+set -o nounset
+set -o pipefail
+set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
 
 if ! [ -d /boot/grub/kb_layouts ]; then
   exit 0
@@ -60,22 +69,22 @@ if [ -f /boot/grub/kb_layouts/user-layout.gkb ]; then
   fi
 
   printf '%s\n' "\
-  menuentry \"SWITCH to user-defined keyboard layout '$user_layout_name'\" \$menuentry_id_option 'switch-kb-layout-user-defined' {
+  menuentry \"SWITCH to user-defined keyboard layout '${user_layout_name}'\" \$menuentry_id_option 'switch-kb-layout-user-defined' {
     load_kb_layout 'user-layout'
   }"
 fi
 
 for layout_file in /boot/grub/kb_layouts/*.gkb; do
-  if ! [ -f "$layout_file" ]; then
+  if ! [ -f "${layout_file}" ]; then
     continue
   fi
-  if [ "$layout_file" = '/boot/grub/kb_layouts/user-layout.gkb' ]; then
+  if [ "${layout_file}" = '/boot/grub/kb_layouts/user-layout.gkb' ]; then
     continue
   fi
-  layout_name="$(basename "$layout_file" | sed 's/\..*//')"
+  layout_name="$(basename "${layout_file}" | sed 's/\..*//')"
   printf '%s\n' "\
-  menuentry \"SWITCH to layout '$layout_name'\" \$menuentry_id_option 'switch-kb-layout-$layout_name' {
-    load_kb_layout '$layout_name'
+  menuentry \"SWITCH to layout '${layout_name}'\" \$menuentry_id_option 'switch-kb-layout-${layout_name}' {
+    load_kb_layout '${layout_name}'
   }"
 done
 
