@@ -7,4 +7,14 @@
 ## http://unix.stackexchange.com/users/100397/roaima
 ## http://unix.stackexchange.com/questions/254419/how-to-get-a-deterministic-complete-dump-of-all-iptables-rules
 
+## style-ok: allow-exec -- transparent filter: the caller consumes this
+## pipeline's stdout directly.
+
+set -o errexit
+set -o nounset
+set -o pipefail
+set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+
 exec iptables-save | sed -e 's/\[[0-9:]*\]/[0,0]/' -e '/^#/d'
