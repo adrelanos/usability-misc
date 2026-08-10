@@ -1123,17 +1123,18 @@ pkg_installed() {
 ##                  trims to a length cap; CLI runs in a maintainer-
 ##                  controlled terminal context where the cap is
 ##                  unnecessary).
-## safe-rm      forwards to the coreutils 'rm' binary. helper-scripts'
-##              safe-rm adds guards against catastrophic deletes; absent
-##              it, the fallback calls '/usr/bin/rm' by absolute path
-##              (a bare 'rm' is forbidden by the R-120 gate; the path
-##              form is the deliberate raw delete this stub provides).
-##              NOTE: a shell function does not cross the su/sudo/doas
-##              boundary of root_cmd/run_as_target_user, so a PRIVILEGED
-##              delete still needs the real safe-rm binary -- present in a
-##              genuine Kicksecure/Whonix install, which is where those
-##              root_cmd paths run; the standalone's own-shell deletes use
-##              this stub directly.
+## safe-rm      the delete command used everywhere below, held as an
+##              ARRAY 'safe_rm_cmd' rather than a shell function -- a
+##              function is NOT visible to a child spawned by root_cmd's
+##              su/sudo/doas, so the KVM-config and hash/signature cleanup
+##              (which delete via root_cmd / run_as_target_user) would
+##              crash with 'command not found'. helper-scripts' safe-rm
+##              guards against catastrophic deletes; absent it (the
+##              standalone on plain Debian/Fedora/... without
+##              helper-scripts), it resolves to the coreutils binary by
+##              absolute path -- a real executable a privilege-switch
+##              child can still exec, which also keeps the R-120 gate
+##              satisfied (a bare 'rm' is forbidden).
 ##
 ## See agents/bash-style-guide.md and TODO-dist-installer-cli-fallbacks.md
 ## for context.
@@ -1152,10 +1153,10 @@ if ! has sanitize-echo; then
     printf '%s\n' "$*"
   }
 fi
-if ! has safe-rm; then
-  safe-rm() {
-    /usr/bin/rm "$@"
-  }
+if has safe-rm; then
+  safe_rm_cmd=( 'safe-rm' )
+else
+  safe_rm_cmd=( '/usr/bin/rm' )
 fi
 
 ## }}}
@@ -2584,7 +2585,7 @@ end_exit() {
 
   ## Clean up temporary FIFO and directory.
   if [ -n "${temp_folder:-}" ] && [ -d "${temp_folder:-}" ]; then
-    safe-rm -rf -- "${temp_folder}"
+    "${safe_rm_cmd[@]}" -rf -- "${temp_folder}"
   fi
 
   true "INFO: Show log file locations at end of xtrace."
@@ -3303,7 +3304,7 @@ File '${file_name_item}' exists but there is no associated VM registered in Virt
         die 1 "VM Import Check: Aborting because of inconsistent state and missing '--destroy-existing-guest' option."
       fi
       log warn "VM superfluous '.vbox' File Deletion: Removing file '${file_name_item}' via '--import-only=${import_only}' and '--destroy-existing-guest' option."
-      log_run warn safe-rm -f -- "${file_name_item}"
+      log_run warn "${safe_rm_cmd[@]}" -f -- "${file_name_item}"
     fi
   done
 }
@@ -3873,7 +3874,7 @@ disable_kvm_virt_at_load() {
   if test -f /etc/modprobe.d/disable-kvm-virt-at-load.conf; then
     log notice "Kernel modules configuration: disabling previous KVM enable_virt_at_load workaround.
 https://forums.kicksecure.com/t/vboxdrv-service-fails-to-start/1730/7"
-    root_cmd_loglevel=notice root_cmd safe-rm --force -- /etc/modprobe.d/disable-kvm-virt-at-load.conf
+    root_cmd_loglevel=notice root_cmd "${safe_rm_cmd[@]}" --force -- /etc/modprobe.d/disable-kvm-virt-at-load.conf
     root_cmd_loglevel=notice root_cmd touch /var/run/reboot-required
   fi
 
@@ -6082,14 +6083,14 @@ check_hash() {
 
 check_signature_test() {
   log info "Unit testing signature, expecting non-zero exit code."
-  run_as_target_user safe-rm -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
+  run_as_target_user "${safe_rm_cmd[@]}" -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
   run_as_target_user cp -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums" "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
   printf '%s\n' "" | run_as_target_user tee -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test" >/dev/null
   if ! check_signature "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test" 2>/dev/null; then
-    run_as_target_user safe-rm -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
+    run_as_target_user "${safe_rm_cmd[@]}" -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
     log info "Received expected non-zero exit code from unit test."
   else
-    run_as_target_user safe-rm -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
+    run_as_target_user "${safe_rm_cmd[@]}" -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
     die 104 "${underline}SHA512 Hash Verification (unit test):${nounderline} 'FAIL' - received a zero as exit code, expected non-zero."
   fi
 }
@@ -6097,14 +6098,14 @@ check_signature_test() {
 
 check_hash_test() {
   log info "Unit testing checksum, expecting non-zero exit code."
-  run_as_target_user safe-rm -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
+  run_as_target_user "${safe_rm_cmd[@]}" -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
   run_as_target_user cp -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums" "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
   printf '%s\n' "" | run_as_target_user tee -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test" >/dev/null
   if ! check_hash "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test" 2>/dev/null; then
-    run_as_target_user safe-rm -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
+    run_as_target_user "${safe_rm_cmd[@]}" -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
     log info "Received expected non-zero exit code from unit test."
   else
-    run_as_target_user safe-rm -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
+    run_as_target_user "${safe_rm_cmd[@]}" -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
     die 104 "${underline}SHA512 Hash Verification (unit test):${nounderline} 'FAIL' - received a zero as exit code, expected non-zero."
   fi
 }
