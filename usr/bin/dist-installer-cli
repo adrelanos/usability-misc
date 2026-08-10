@@ -450,8 +450,10 @@ source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/log_run_die.sh
 
 ## Wrapper to end the exit trap.
 end_exit() {
-  ## Reset exit trap.
-  trap - EXIT HUP INT QUIT ABRT ALRM TERM
+  ## Reset traps, ERR included: a cleanup failure below must not re-enter
+  ## handle_exit_trap, and (with errexit) must not exit end_exit before the
+  ## final 'exit "${last_exit}"' with the installer's status.
+  trap - ERR EXIT HUP INT QUIT ABRT ALRM TERM
   ## Kill tail PID.
   if [ -n "${tail_pid:-}" ]; then
     ## Sleep less than a second so the file descriptors have enough time to
@@ -464,9 +466,10 @@ end_exit() {
     fi
   fi
 
-  ## Clean up temporary FIFO and directory.
+  ## Clean up temporary FIFO and directory. Tolerate failure: this runs on
+  ## the exit path and must not abort before 'exit "${last_exit}"'.
   if [ -n "${temp_folder:-}" ] && [ -d "${temp_folder:-}" ]; then
-    "${safe_rm_cmd[@]}" -rf -- "${temp_folder}"
+    "${safe_rm_cmd[@]}" -rf -- "${temp_folder}" || true
   fi
 
   true "INFO: Show log file locations at end of xtrace."
