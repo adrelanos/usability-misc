@@ -1123,18 +1123,14 @@ pkg_installed() {
 ##                  trims to a length cap; CLI runs in a maintainer-
 ##                  controlled terminal context where the cap is
 ##                  unnecessary).
-## safe-rm      the delete command used everywhere below, held as an
-##              ARRAY 'safe_rm_cmd' rather than a shell function -- a
-##              function is NOT visible to a child spawned by root_cmd's
-##              su/sudo/doas, so the KVM-config and hash/signature cleanup
-##              (which delete via root_cmd / run_as_target_user) would
-##              crash with 'command not found'. helper-scripts' safe-rm
-##              guards against catastrophic deletes; absent it (the
-##              standalone on plain Debian/Fedora/... without
-##              helper-scripts), it resolves to the coreutils binary by
-##              absolute path -- a real executable a privilege-switch
-##              child can still exec, which also keeps the R-120 gate
-##              satisfied (a bare 'rm' is forbidden).
+## safe-rm      the delete command used below, held as the ARRAY
+##              'safe_rm_cmd': a shell function does not cross root_cmd's
+##              su/sudo/doas, so the root_cmd / run_as_target_user deletes
+##              would fail 'command not found'. It is 'safe-rm' when the
+##              binary is present (guards catastrophic deletes), else the
+##              coreutils binary by absolute path -- a real executable a
+##              privilege child can exec, which also satisfies R-120
+##              (a bare 'rm' is forbidden).
 ##
 ## See agents/bash-style-guide.md and TODO-dist-installer-cli-fallbacks.md
 ## for context.
