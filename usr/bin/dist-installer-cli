@@ -145,6 +145,11 @@ if ! has sanitize-string; then
     cat
   }
 fi
+if ! has sanitize-echo; then
+  sanitize-echo() {
+    printf '%s\n' "$*"
+  }
+fi
 
 ## }}}
 

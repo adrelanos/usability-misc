@@ -25,6 +25,11 @@ jobs:
     ## refuse to start before any job ran).
 
     build:
+        ## CI runs only where we enabled it. Unset variable -> the job is
+        ## skipped, no runner is allocated, and the run stays green: upstream
+        ## and forks are never handed a red X for a lane they did not opt into.
+        ## A fork that WANTS our CI sets the same variable in its own repo.
+        if: vars.CI_ENABLED_ORG_AI_ASSISTED == 'true'
         ## Github takes too long to set the current latest image, this is
         ## why we set it manually.
         ##  https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners#supported-runners-and-hardware-resources
@@ -182,7 +187,9 @@ jobs:
                       apt-get remove -y 'virtualbox*'
                       sudo -u user -- usr/share/usability-misc/dist-installer-cli-standalone --non-interactive --log-level=debug --no-boot --dev --ci --virtualbox-only
                     else
-                      exit $?
+                      ## "$?" here is the status of the `if` condition, which has
+                      ## just failed. Report the installer's own exit code.
+                      exit "${ec}"
                     fi
                   }
             - name: Run VirtualBox Installer - back to default repository - Clearnet
