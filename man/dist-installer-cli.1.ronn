@@ -111,10 +111,6 @@ format <guest-interface-installer>.
 
         Only download and install VirtualBox.
 
-`--allow-errors`
-
-        Enable dirty mode, where the program continues despite errors.
-
 `--ci`
 
         Enable CI mode for testing within Continuous Integration (CI) environments.
