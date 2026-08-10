@@ -1555,7 +1555,7 @@ prompt_yes_no_tty() {
   reply=""
   read -r reply < /dev/tty 2>/dev/null || return 2
   case "${reply,,}" in
-    y | yes)
+    y|yes)
       return 0
       ;;
   esac
@@ -1675,6 +1675,7 @@ ${underline}Non-Root Check:${nounderline} Running as root.
 
 ## style-ok: no-strict -- sourced library; a top-level strict-mode block
 ## would leak 'set -o errexit'/'nounset' into the sourcing shell.
+##
 ## style-ok: no-has -- root_cmd() below uses 'command -v' to RESOLVE a
 ## command's path (has returns only a boolean); has is used elsewhere.
 
