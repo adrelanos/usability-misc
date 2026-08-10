@@ -19,7 +19,7 @@ source /usr/libexec/helper-scripts/has.sh
 has lspci || exit 0
 
 export LC_ALL='C'
-if lspci | grep -q 'USB controller:' ; then
+if lspci | grep -- 'USB controller:' >/dev/null ; then
   exit 0
 fi
 exit 1

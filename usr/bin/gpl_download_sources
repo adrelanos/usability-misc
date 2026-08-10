@@ -21,7 +21,7 @@ error_handler() {
       "####################" \
       "## ERROR detected. #" \
       "####################" \
-      ""
+      "" >&2
 
    exit 1
 }
@@ -39,7 +39,13 @@ apt-get \
    ${apt_unattended_opts} \
    update
 
-for i in $(damngpl --source /var/lib/dpkg/status); do
+if ! damngpl_list="$(damngpl --source /var/lib/dpkg/status)"; then
+   error_handler
+fi
+
+## damngpl_list is a deliberately word-split package list.
+# shellcheck disable=SC2086
+for i in ${damngpl_list}; do
    # shellcheck disable=SC2086
    apt-get \
       "${DIST_APTGETOPT[@]}" \
