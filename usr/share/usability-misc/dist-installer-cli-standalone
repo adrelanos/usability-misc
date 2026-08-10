@@ -1126,11 +1126,14 @@ pkg_installed() {
 ## safe-rm      the delete command used below, held as the ARRAY
 ##              'safe_rm_cmd': a shell function does not cross root_cmd's
 ##              su/sudo/doas, so the root_cmd / run_as_target_user deletes
-##              would fail 'command not found'. It is 'safe-rm' when the
-##              binary is present (guards catastrophic deletes), else the
-##              coreutils binary by absolute path -- a real executable a
-##              privilege child can exec, which also satisfies R-120
-##              (a bare 'rm' is forbidden).
+##              would fail 'command not found'. BOTH branches are a FIXED
+##              absolute path, never a bare name resolved through a
+##              (possibly hijacked) PATH before a privilege switch:
+##              helper-scripts' '/usr/bin/safe-rm' when installed (guards
+##              catastrophic deletes), else the coreutils '/usr/bin/rm'.
+##              Absolute also satisfies R-120 (a bare 'rm' is forbidden);
+##              the '-x' path test is R-090's preferred form for a fixed
+##              install location.
 ##
 ## See agents/bash-style-guide.md and TODO-dist-installer-cli-fallbacks.md
 ## for context.
@@ -1149,8 +1152,8 @@ if ! has sanitize-echo; then
     printf '%s\n' "$*"
   }
 fi
-if has safe-rm; then
-  safe_rm_cmd=( 'safe-rm' )
+if [ -x /usr/bin/safe-rm ]; then
+  safe_rm_cmd=( '/usr/bin/safe-rm' )
 else
   safe_rm_cmd=( '/usr/bin/rm' )
 fi
