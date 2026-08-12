@@ -24,7 +24,7 @@ for project in kicksecure whonix ; do
 
    wiki_backup_dir=~/project-backup/"${project}"-wiki-backup-dump-content-current
    if ! test -d "${wiki_backup_dir}/.git" ; then
-      git clone "https://gitlab.com/${project}/${project}-wiki-backup-dump-content-current.git" "${wiki_backup_dir}"
+      git clone "https://gitlab.com/${project}/wiki-backup-dump-content-current.git" "${wiki_backup_dir}"
    fi
    cd "${wiki_backup_dir}"
    git fetch || true
