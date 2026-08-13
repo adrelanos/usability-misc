@@ -8,6 +8,9 @@
 ## Print the `run:` body of a named workflow step, so a test can exercise the
 ## shipped text instead of a copy that can drift from it.
 
+## FIXME: Delete this, it will be obsolete once the script fragment being
+## tested is split into a new file.
+
 import sys
 
 import yaml

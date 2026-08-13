@@ -22,7 +22,7 @@ for project in kicksecure whonix ; do
    cd ~/project-backup/"${project}"
    github-backup "${project}" || true
 
-   wiki_backup_dir=~/project-backup/"${project}"-wiki-backup-dump-content-current
+   wiki_backup_dir="${HOME}"/project-backup/"${project}"-wiki-backup-dump-content-current
    if ! test -d "${wiki_backup_dir}/.git" ; then
       git clone "https://gitlab.com/${project}/wiki-backup-dump-content-current.git" "${wiki_backup_dir}"
    fi

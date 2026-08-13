@@ -32,11 +32,11 @@ hashsum_old="$(sha512sum ./usr/share/usability-misc/dist-installer-cli-standalon
 hashsum_new="$(sha512sum ./usr/share/usability-misc/dist-installer-cli-standalone)"
 
 if [ ! "${hashsum_old}" = "${hashsum_new}" ]; then
-  printf '%s\n' \
-    "$0: old: '${hashsum_old}'" \
-    "$0: new: '${hashsum_new}'" \
-    "$0: ERROR: ./usr/share/usability-misc/dist-installer-cli-standalone has not been rebuilt. Run:" \
-    "./usr/share/usability-misc/build-dist-installer-cli"
+  printf '%s\n' "\
+$0: old: '${hashsum_old}'
+$0: new: '${hashsum_new}'
+$0: ERROR: ./usr/share/usability-misc/dist-installer-cli-standalone has not been rebuilt. Run:
+./usr/share/usability-misc/build-dist-installer-cli"
   exit 1
 fi
 

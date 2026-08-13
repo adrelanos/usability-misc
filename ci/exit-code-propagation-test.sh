@@ -9,6 +9,10 @@
 ## INSTALLER's exit code, not the status of the `if` condition that just
 ## failed. A wrong code turns a real installer failure into a meaningless 1,
 ## so the log no longer says WHICH failure occurred.
+##
+## FIXME: Most of this code is unnecessary; just break the script fragment
+## being tested into its own file, then test it in this script and call it
+## from the workflow.
 
 set -o errexit
 set -o errtrace

@@ -4,12 +4,11 @@
 ## See the file COPYING for copying conditions.
 
 ## The resolved PATH of the real binary is needed as an argument to the dynamic
-## linker below, not just a yes/no answer, so 'has' cannot be used here.
+## linker below, so 'has' cannot be used here.
 ## style-ok: no-has
 
 ## style-ok: allow-exec -- transparent wrapper: the dynamic linker must replace
-## this process so Flameshot's spoofed argv[0] and signal handling are the real
-## ones the desktop sees.
+## this process.
 
 set -o errexit
 set -o nounset

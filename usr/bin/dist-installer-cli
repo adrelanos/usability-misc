@@ -124,27 +124,19 @@ source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/package_installed_c
 ## `stecho` and `sanitize-string` come from the helper-scripts package
 ## and are on PATH; the standalone runs on plain Debian/Fedora/Ubuntu/
 ## Mint/Kali images without helper-scripts installed, so we provide
-## minimal bash-function shims when the binary isn't present.
+## minimal shims when the binary isn't present.
 ##
-## stecho       prints its args verbatim plus a newline (the upstream
-##              binary does the same, with extra unicode-trojan-source
-##              guards which the controlled CLI context here does not
-##              need).
-## sanitize-string  passes stdin through unchanged (the binary
-##                  trims to a length cap; CLI runs in a maintainer-
-##                  controlled terminal context where the cap is
+## stecho       Replaced with a function that prints its args verbatim plus a
+##              newline (the upstream binary does the same, with extra
+##              unicode-trojan-source guards which the controlled CLI context
+##              here does not need).
+## sanitize-string  Replaced with a function that passes stdin through
+##                  unchanged (the binary trims to a length cap; CLI runs in a
+##                  maintainer-controlled terminal context where the cap is
 ##                  unnecessary).
-## safe-rm      the delete command used below, held as the ARRAY
-##              'safe_rm_cmd': a shell function does not cross root_cmd's
-##              su/sudo/doas, so the root_cmd / run_as_target_user deletes
-##              would fail 'command not found'. BOTH branches are a FIXED
-##              absolute path, never a bare name resolved through a
-##              (possibly hijacked) PATH before a privilege switch:
-##              helper-scripts' '/usr/bin/safe-rm' when installed (guards
-##              catastrophic deletes), else the coreutils '/usr/bin/rm'.
-##              Absolute also satisfies R-120 (a bare 'rm' is forbidden);
-##              the '-x' path test is R-090's preferred form for a fixed
-##              install location.
+## sanitize-echo  Replaced with a function identical to the one replacing
+##                stecho.
+## safe-rm      Replaced with coreutils' rm when not present.
 ##
 ## See agents/bash-style-guide.md and TODO-dist-installer-cli-fallbacks.md
 ## for context.
@@ -160,6 +152,9 @@ if ! has sanitize-string; then
 fi
 if ! has sanitize-echo; then
   sanitize-echo() {
+    ## FIXME: This will print things the user doesn't want to see like the
+    ## end-of-options marker and the --max-length argument. Maybe just print
+    ## the last argument?
     printf '%s\n' "$*"
   }
 fi
@@ -450,9 +445,7 @@ source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/log_run_die.sh
 
 ## Wrapper to end the exit trap.
 end_exit() {
-  ## Reset traps, ERR included: a cleanup failure below must not re-enter
-  ## handle_exit_trap, and (with errexit) must not exit end_exit before the
-  ## final 'exit "${last_exit}"' with the installer's status.
+  ## Reset traps.
   trap - ERR EXIT HUP INT QUIT ABRT ALRM TERM
   ## Kill tail PID.
   if [ -n "${tail_pid:-}" ]; then
@@ -466,8 +459,7 @@ end_exit() {
     fi
   fi
 
-  ## Clean up temporary FIFO and directory. Tolerate failure: this runs on
-  ## the exit path and must not abort before 'exit "${last_exit}"'.
+  ## Clean up temporary FIFO and directory.
   if [ -n "${temp_folder:-}" ] && [ -d "${temp_folder:-}" ]; then
     "${safe_rm_cmd[@]}" -rf -- "${temp_folder}" || true
   fi
@@ -2895,8 +2887,7 @@ install_virtualbox_debian_common_begin() {
     done
   fi
   if has vboxmanage; then
-    ## style-ok: no-has -- 'command -v' RESOLVES the binary's path here
-    ## (has returns only a boolean); existence is already confirmed above.
+    ## style-ok: no-has -- 'command -v' resolves the binary's path here.
     vbox_manage_full_path="$(command -v vboxmanage)"
     if ! dpkg --search "${vbox_manage_full_path}" >/dev/null ; then
       die 109 "Found Oracle VirtualBox installed from tarball/source. Using a package manager can conflict with your already manually installed VirtualBox. Uninstall VirtualBox first and then rerun this script. Use the option '--oracle-repo' if you want to install from the Oracle repository."
