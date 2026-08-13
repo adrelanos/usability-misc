@@ -3,9 +3,24 @@
 ## Copyright (C) 2020 - 2025 ENCRYPTED SUPPORT LLC <adrelanos@kicksecure.com>
 ## See the file COPYING for copying conditions.
 
+## The resolved PATH of the real binary is needed as an argument to the dynamic
+## linker below, not just a yes/no answer, so 'has' cannot be used here.
+## style-ok: no-has
+
+## style-ok: allow-exec -- transparent wrapper: the dynamic linker must replace
+## this process so Flameshot's spoofed argv[0] and signal handling are the real
+## ones the desktop sees.
+
+set -o errexit
+set -o nounset
+set -o pipefail
+set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+
 flameshot_exe="$(command -v flameshot.dist-orig)" || true
 if [ -z "${flameshot_exe}" ]; then
-  echo 'Please install the flameshot and xdg-desktop-portal-wlr packages to use this tool.'
+  printf '%s\n' 'Please install the flameshot and xdg-desktop-portal-wlr packages to use this tool.'
   exit 1
 fi
 

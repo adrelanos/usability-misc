@@ -1,3 +1,49 @@
+commit 881e7bb18ebbb10c4708972142600f8452e06c03
+Merge: 8a91817 0fba6b2
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Fri Jul 31 13:18:05 2026 -0400
+
+    Merge remote-tracking branch 'refs/remotes/org-ai-assisted/master'
+
+commit 0fba6b24d6c9ba6579fb941562215a03f1ca4961
+Merge: 8a91817 3546899
+Author: assisted-by-ai (Bot Account) (Machine Account) <228987186+assisted-by-ai@users.noreply.github.com>
+Date:   Fri Jul 31 10:22:37 2026 -0400
+
+    Merge pull request from org-ai-assisted/ai
+
+    ci: gate the local workflows on CI_ENABLED_ORG_AI_ASSISTED
+
+commit 35468991272756da37f1de1357446b4644a747fc
+Author: claude (dev138 9b889944-0a22-45e7-8fd6-c189113e33b9) <noreply@anthropic.com>
+Date:   Fri Jul 31 09:38:25 2026 -0400
+
+    ci: gate the local workflows on CI_ENABLED_ORG_AI_ASSISTED
+
+    Our workflows ran wherever the branch landed. Merged upstream they burn
+    Kicksecure/Whonix runner quota and post our CI into repos that never
+    asked for it; on a contributor fork they run the whole suite unbidden.
+    Only 5 of 136 workflow files across the fleet carried any owner gate.
+
+    Gate: a job-level `vars.CI_ENABLED_ORG_AI_ASSISTED == 'true'`, set once
+    as an organization variable on org-ai-assisted. Zero runner cost -- a job
+    whose `if:` is false never allocates one -- and the run still reports
+    green, so upstream and forks are not handed a red X for a lane they did
+    not opt into. A fork that WANTS the lane sets the same variable in its
+    own repo; no patch to these files, no fork of our workflows.
+
+    ANDed in front of any existing fork-PR guard rather than replacing it.
+
+    Verified: the workflow-yaml validator reports 0 findings for this repo.
+
+    Generated with assistance from Claude Code.
+
+commit 8a918177d087161391990fb2d80662ef6bc3ee11
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Tue Jul 28 13:22:46 2026 +0000
+
+    bumped changelog version
+
 commit 2feb192b08689cee5b2bb1494d9110c2146e9472
 Author: Patrick Schleizer <adrelanos@whonix.org>
 Date:   Tue Jul 28 09:08:03 2026 -0400

@@ -1,14 +1,20 @@
 #!/bin/bash
 
-set -e
+set -o errexit
+set -o nounset
+set -o pipefail
+set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
 
+# shellcheck source=./usr/bin/dist-installer-cli
 source usr/bin/dist-installer-cli
 
 set_target_user_account root
 
 test_file -f /etc/hostname
 test_file -d /
-test_file -w "$HOME"
+test_file -w "${HOME}"
 test_file -r /
 test_file -e /
 
@@ -21,4 +27,3 @@ fi
 test_run_as_target_user
 
 true "$0: END"
-

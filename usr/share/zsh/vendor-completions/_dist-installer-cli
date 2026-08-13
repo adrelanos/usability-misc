@@ -26,7 +26,6 @@ args=(
   '(--redownload)'--redownload'[Redo download]'
   '(--destroy-existing-guest)'--destroy-existing-guest'[Delete and re-import. Danger! Risk of data loss!]'
   '(-n --non-interactive)'{-n,--non-interactive}'[Set non-interactive mode]'
-  '(--allow-errors)'--allow-errors'[Set dirty mode]'
   '(--testers)'--testers'[Set testers mode]'
   '(-D --dev)'{-D,--dev}'[Set dev mode]'
   '(--noupdate)'--noupdate'[Skip package manager list update (dev only)]'
