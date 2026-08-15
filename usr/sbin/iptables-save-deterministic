@@ -7,4 +7,15 @@
 ## http://unix.stackexchange.com/users/100397/roaima
 ## http://unix.stackexchange.com/questions/254419/how-to-get-a-deterministic-complete-dump-of-all-iptables-rules
 
+## style-ok: allow-exec -- transparent filter.
+
+set -o errexit
+set -o nounset
+set -o pipefail
+set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+
+## FIXME: Why are we using exec here? It doesn't actually result in the shell
+## process being replaced due to the pipeline.
 exec iptables-save | sed -e 's/\[[0-9:]*\]/[0,0]/' -e '/^#/d'

@@ -4,7 +4,12 @@
 ## See the file COPYING for copying conditions.
 
 set -x
-set -e
+set -o errexit
+set -o nounset
+set -o pipefail
+set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
 
 sudo apt-get update
 sudo apt-get install --yes git github-backup
@@ -13,15 +18,15 @@ for project in kicksecure whonix ; do
    mkdir --parents ~/project-backup
    cd ~/project-backup
 
-   mkdir --parents ~/project-backup/$project
-   cd ~/project-backup/$project
-   github-backup $project || true
+   mkdir --parents ~/project-backup/"${project}"
+   cd ~/project-backup/"${project}"
+   github-backup "${project}" || true
 
-   mkdir --parents ~/project-backup/$project-wiki-backup-dump-content-current
-   if ! test -d ~/project-backup/$project-wiki-backup-dump-content-current ; then
-      git clone https://gitlab.com/$project/$project-wiki-backup-dump-content-current.git || true
+   wiki_backup_dir="${HOME}"/project-backup/"${project}"-wiki-backup-dump-content-current
+   if ! test -d "${wiki_backup_dir}/.git" ; then
+      git clone "https://gitlab.com/${project}/wiki-backup-dump-content-current.git" "${wiki_backup_dir}"
    fi
-   cd ~/project-backup/$project-wiki-backup-dump-content-current
+   cd "${wiki_backup_dir}"
    git fetch || true
 
    ## git-mediawiki based backup

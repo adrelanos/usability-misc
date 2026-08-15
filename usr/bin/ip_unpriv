@@ -6,4 +6,13 @@
 ## This only works if you enable the sudoers exception in configuration file
 ## /etc/sudoers.d/tunnel_unpriv.
 
+## style-ok: allow-exec -- transparent wrapper.
+
+set -o errexit
+set -o nounset
+set -o pipefail
+set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+
 exec sudo --non-interactive /bin/ip "$@"

@@ -12,7 +12,7 @@ declare version me start_time dialog_title license adrelanos_signify \
   hulahoop_signify oracle_pgp user_home_dir directory_prefix guest \
   hypervisor interface oracle_repo log_level guest_version socks_proxy onion \
   non_interactive dev noupdate noupgrade dry_run getversion getopt ci no_import \
-  no_boot redownload import_only destroy_existing_guest testers allow_errors \
+  no_boot redownload import_only destroy_existing_guest testers \
   mirror virtualbox_only target_user last_exit guest_pretty xtrace sucmd \
   url_version_domain run_background background_pid  \
   debian_derivative_detected ubuntu_derivative_detected \
@@ -95,6 +95,8 @@ if was_executed "${BASH_SOURCE[0]}"; then
   set -o errtrace
   set -o nounset
   set -o pipefail
+  shopt -s inherit_errexit
+  shopt -s shift_verbose
   ## Skip 'strings.bsh' unit tests.
   SKIP_UNIT_TESTS=true
 fi
@@ -122,16 +124,19 @@ source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/package_installed_c
 ## `stecho` and `sanitize-string` come from the helper-scripts package
 ## and are on PATH; the standalone runs on plain Debian/Fedora/Ubuntu/
 ## Mint/Kali images without helper-scripts installed, so we provide
-## minimal bash-function shims when the binary isn't present.
+## minimal shims when the binary isn't present.
 ##
-## stecho       prints its args verbatim plus a newline (the upstream
-##              binary does the same, with extra unicode-trojan-source
-##              guards which the controlled CLI context here does not
-##              need).
-## sanitize-string  passes stdin through unchanged (the binary
-##                  trims to a length cap; CLI runs in a maintainer-
-##                  controlled terminal context where the cap is
+## stecho       Replaced with a function that prints its args verbatim plus a
+##              newline (the upstream binary does the same, with extra
+##              unicode-trojan-source guards which the controlled CLI context
+##              here does not need).
+## sanitize-string  Replaced with a function that passes stdin through
+##                  unchanged (the binary trims to a length cap; CLI runs in a
+##                  maintainer-controlled terminal context where the cap is
 ##                  unnecessary).
+## sanitize-echo  Replaced with a function identical to the one replacing
+##                stecho.
+## safe-rm      Replaced with coreutils' rm when not present.
 ##
 ## See agents/bash-style-guide.md and TODO-dist-installer-cli-fallbacks.md
 ## for context.
@@ -147,8 +152,16 @@ if ! has sanitize-string; then
 fi
 if ! has sanitize-echo; then
   sanitize-echo() {
+    ## FIXME: This will print things the user doesn't want to see like the
+    ## end-of-options marker and the --max-length argument. Maybe just print
+    ## the last argument?
     printf '%s\n' "$*"
   }
+fi
+if [ -x /usr/bin/safe-rm ]; then
+  safe_rm_cmd=( '/usr/bin/safe-rm' )
+else
+  safe_rm_cmd=( '/usr/bin/rm' )
 fi
 
 ## }}}
@@ -432,8 +445,8 @@ source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/log_run_die.sh
 
 ## Wrapper to end the exit trap.
 end_exit() {
-  ## Reset exit trap.
-  trap - EXIT HUP INT QUIT ABRT ALRM TERM
+  ## Reset traps.
+  trap - ERR EXIT HUP INT QUIT ABRT ALRM TERM
   ## Kill tail PID.
   if [ -n "${tail_pid:-}" ]; then
     ## Sleep less than a second so the file descriptors have enough time to
@@ -448,7 +461,7 @@ end_exit() {
 
   ## Clean up temporary FIFO and directory.
   if [ -n "${temp_folder:-}" ] && [ -d "${temp_folder:-}" ]; then
-    rm -rf -- "${temp_folder}"
+    "${safe_rm_cmd[@]}" -rf -- "${temp_folder}" || true
   fi
 
   true "INFO: Show log file locations at end of xtrace."
@@ -487,7 +500,7 @@ handle_exit() {
     log error "If the issue does not recur on retry, it can be safely ignored as transient."
     log error "Consult ${guest_pretty} News and the User Help Forum for assistance."
     log error "Please report this bug if it has not been already."
-    printf '\n'
+    printf '%s\n' ""
     log error "An error occurred at line: '${line_number}'"
     ## ideas from https://unix.stackexchange.com/questions/39623/trap-err-and-echoing-the-error-line
     ## Simple version that doesn't indicate the error line.
@@ -499,10 +512,10 @@ handle_exit() {
     printf '%s\n*%s\n%s\n' "${line_above}" "${line_error}" "${line_below}"
     ## Too complex.
     # awk 'NR>L-4 && NR<L+4 { printf " %-5d%3s %s\n",NR,(NR==L?">>>":""),$0 }' L="${line_number}" "${0}" >&2
-    printf '\n'
+    printf '%s\n' ""
     log error "Please include the user log and the debug log in your bug report."
     log error "(For file locations where to find these logs, see above.)"
-    printf '\n'
+    printf '%s\n' ""
   else
     if [ "${last_exit}" -gt 128 ] && [ "${last_exit}" -lt 193 ]; then
       signal_code=$((last_exit-128))
@@ -538,14 +551,14 @@ claim_unsupported_distro() {
 
 ## Get necessary packages for your host system to be able to set the guest.
 get_host_virtualizer_pkgs() {
-  log notice "$hypervisor_pretty Installation: Required system virtualization packages are being installed... Please wait, this process may take a few minutes..."
-  if [ "$ubuntu_derivative_detected" = "1" ]; then
+  log notice "${hypervisor_pretty} Installation: Required system virtualization packages are being installed... Please wait, this process may take a few minutes..."
+  if [ "${ubuntu_derivative_detected}" = "1" ]; then
     install_package_debian_common
     install_virtualbox_ubuntu
-  elif [ "$debian_derivative_detected" = "1" ]; then
+  elif [ "${debian_derivative_detected}" = "1" ]; then
     install_package_debian_common
     install_virtualbox_debian
-  elif [ "$fedora_derivative_detected" = "1" ]; then
+  elif [ "${fedora_derivative_detected}" = "1" ]; then
     install_package_fedora_common
     install_virtualbox_fedora
   else
@@ -631,8 +644,8 @@ secure_boot_test() {
   local mokutil_output_sb_state
   secure_boot_dkms_key_enrolled=""
   if mokutil_output_sb_state=$(root_cmd mokutil --sb-state 2>&1) ; then
-    if printf '%s' "$mokutil_output_sb_state" | grep --ignore-case --fixed-strings -- "enabled" >/dev/null; then
-      secure_boot_status_pretty="'enabled' (mokutil_output_sb_state: '$mokutil_output_sb_state')"
+    if printf '%s' "${mokutil_output_sb_state}" | grep --ignore-case --fixed-strings -- "enabled" >/dev/null; then
+      secure_boot_status_pretty="'enabled' (mokutil_output_sb_state: '${mokutil_output_sb_state}')"
       secure_boot_status_short='true'
       ## sudo mokutil --test-key /var/lib/dkms/mok.pub
       ## > /var/lib/dkms/mok.pub is already enrolled
@@ -641,30 +654,30 @@ secure_boot_test() {
       ## Redirection '2>&1' not necessary yet but that could be considered a minor bug in mokutil to write to stdout instead
       ## of writing to stderr.
       secure_boot_mokutil_dkms_test_key="$(root_cmd mokutil --test-key "${dkms_mok_path}" 2>&1)" || true
-      if printf '%s' "$secure_boot_mokutil_dkms_test_key" | grep --ignore-case --fixed-strings -- "already enrolled" >/dev/null ; then
+      if printf '%s' "${secure_boot_mokutil_dkms_test_key}" | grep --ignore-case --fixed-strings -- "already enrolled" >/dev/null ; then
         secure_boot_dkms_key_enrolled=true
       fi
-    elif printf '%s' "$mokutil_output_sb_state" | grep --ignore-case --fixed-strings -- "disabled" >/dev/null ; then
+    elif printf '%s' "${mokutil_output_sb_state}" | grep --ignore-case --fixed-strings -- "disabled" >/dev/null ; then
       secure_boot_status_short='false'
-      secure_boot_status_pretty="'disabled' (mokutil_output_sb_state: '$mokutil_output_sb_state')"
+      secure_boot_status_pretty="'disabled' (mokutil_output_sb_state: '${mokutil_output_sb_state}')"
     else
       secure_boot_status_short='false'
-      secure_boot_status_pretty="'unknown-please-report-this-minor-bug' (mokutil_output_sb_state: '$mokutil_output_sb_state')"
+      secure_boot_status_pretty="'unknown-please-report-this-minor-bug' (mokutil_output_sb_state: '${mokutil_output_sb_state}')"
     fi
   else
     secure_boot_status_short='false'
-    secure_boot_status_pretty="'disabled' (mokutil_output_sb_state: '$mokutil_output_sb_state')"
+    secure_boot_status_pretty="'disabled' (mokutil_output_sb_state: '${mokutil_output_sb_state}')"
   fi
-  log info "Secure Boot Check Result: $secure_boot_status_pretty Ok."
+  log info "Secure Boot Check Result: ${secure_boot_status_pretty} Ok."
 }
 
 
 dkms_signing_key_enrollment() {
-  if [ ! "$secure_boot_status_short" = "true" ]; then
+  if [ ! "${secure_boot_status_short}" = "true" ]; then
     log info "Secure Boot DKMS Signing Key Enrollment Check Result: 'success' - Secure Boot is disabled, therefore DKMS signing key enrollment is unnecessary, ok."
     return 0
   fi
-  if [ "$secure_boot_dkms_key_enrolled" = "true" ]; then
+  if [ "${secure_boot_dkms_key_enrolled}" = "true" ]; then
     log info "Secure Boot DKMS Signing Key Enrollment Check Result: 'success' - Secure Boot is enabled and DKMS signing key has already been enrolled, ok."
     return 0
   fi
@@ -673,7 +686,7 @@ dkms_signing_key_enrollment() {
     return 0
   fi
 
-  log notice "secure_boot_mokutil_dkms_test_key: '$secure_boot_mokutil_dkms_test_key'"
+  log notice "secure_boot_mokutil_dkms_test_key: '${secure_boot_mokutil_dkms_test_key}'"
 
   ## Not simple to automate, because it requires a password prompt.
   ## https://git.launchpad.net/~ubuntu-core-dev/shim/+git/shim-signed/tree/update-secureboot-policy
@@ -718,7 +731,7 @@ kernel_modules_load() {
     log warn "${underline}Kernel Module Load Check Result:${nounderline} 'failed' (failed to cat -- /proc/sys/kernel/modules_disabled)"
     return 0
   fi
-  if [ "$modules_disabled" = "0" ]; then
+  if [ "${modules_disabled}" = "0" ]; then
     kernel_modules_can_be_loaded=true
     log info "Kernel Module Load Check Result: 'yes' - modules can be loaded. (sysctl kernel.modules_disabled=0 is set.)"
     return 0
@@ -737,7 +750,7 @@ kernel_modules_signed_only() {
     log warn "${underline}Kernel Module Signature Enforcement Check Result:${nounderline} 'failed' (failed to cat -- /sys/module/module/parameters/sig_enforce)"
     return 0
   fi
-  if [ "$sig_enforce" = "Y" ]; then
+  if [ "${sig_enforce}" = "Y" ]; then
     modules_signed_only=true
     log info "Kernel Module Signature Enforcement Check Result: 'yes' - only signed modules can be loaded. (kernel parameter module.sig_enforce=1 might be set.)"
     return 0
@@ -771,8 +784,8 @@ Debugging information: file /var/run/reboot-required exists."
 
 
 need_reboot_check_second() {
-  true "fedora_derivative_detected: $fedora_derivative_detected"
-  if [ ! "$fedora_derivative_detected" = "1" ]; then
+  true "fedora_derivative_detected: ${fedora_derivative_detected}"
+  if [ ! "${fedora_derivative_detected}" = "1" ]; then
     return 0
   fi
 
@@ -795,12 +808,12 @@ need_reboot_check_second() {
     die 1 "Reboot Check Result: needs-restarting command not available!"
   fi
 
-  if [ "$needs_restarting_exit_code" = "0" ]; then
+  if [ "${needs_restarting_exit_code}" = "0" ]; then
     true "INFO: No reboot required."
     return 0
   fi
 
-  if ! [ "$needs_restarting_exit_code" = "1" ]; then
+  if ! [ "${needs_restarting_exit_code}" = "1" ]; then
     die 1 "Reboot Check Result: needs-restarting exited with unexpected code ${needs_restarting_exit_code}!"
   fi
 
@@ -840,9 +853,9 @@ update_sources() {
   if update_output=$(root_cmd_loglevel=notice root_cmd "${update_cmd[@]}" 2>&1 | "${console_write_command[@]}") ; then
     log info "Package List Update: exit code '0' (OK)"
     true "INFO: Exit code is zero but that does not guarantee in case of dnf that there is no error."
-    if printf '%s' "$update_output" | grep --ignore-case -- "Error:" >/dev/null ; then
+    if printf '%s' "${update_output}" | grep --ignore-case -- "Error:" >/dev/null ; then
       log error "${underline}Package List Update:${nounderline} Exit code was '0' but 'Error:' found in output."
-      if printf '%s' "$update_output" | grep --ignore-case -- "signature verification error: Signing key not" >/dev/null; then
+      if printf '%s' "${update_output}" | grep --ignore-case -- "signature verification error: Signing key not" >/dev/null; then
         log warn "${underline}Package List Update:${nounderline} Signing key not found. Skipping due to 'rpm --import' failing to import keys, but '--assumeyes' being used will import keys."
         return 0
       fi
@@ -885,7 +898,7 @@ check_upgrades_simulation() {
     && upgrade_simulate_cmd+=( "${install_pkg_fasttrack_extra_args_maybe[@]}" )
   if upgrade_simulate_output=$(root_cmd_loglevel=notice root_cmd "${upgrade_simulate_cmd[@]}" 2>&1 | "${console_write_command[@]}") ; then
     true "INFO: Exit code is zero but that does not guarantee in case of dnf that there is no error."
-    if printf '%s' "$upgrade_simulate_output" | grep --ignore-case -- "Error:" >/dev/null ; then
+    if printf '%s' "${upgrade_simulate_output}" | grep --ignore-case -- "Error:" >/dev/null ; then
       log error "${underline}Package Upgrade Simulation:${nounderline} Exit code was 0 but 'Error:' found in output."
       upgrade_simulate_sources_error
     fi
@@ -913,7 +926,7 @@ check_upgrades_simulation() {
     packages_upgradable=false
   fi
 
-  if [ "$packages_upgradable" = "false" ]; then
+  if [ "${packages_upgradable}" = "false" ]; then
     log info "Package Upgrade Simulation: No packages require upgrading, ok."
     return 0
   fi
@@ -1074,18 +1087,18 @@ check_vm_registered_virtualbox() {
       gateway_exists=0
       if run_as_target_user "${vboxmanage_locale_english[@]}" showvminfo "${guest_full_vm_name_gateway}" >/dev/null 2>&1 ; then
         gateway_exists=1
-        log info "Existing VM Check Result $extra_message: guest '${guest_full_vm_name_gateway}' exists."
+        log info "Existing VM Check Result ${extra_message}: guest '${guest_full_vm_name_gateway}' exists."
       fi
       if run_as_target_user "${vboxmanage_locale_english[@]}" showvminfo "${guest_full_vm_name_workstation}" >/dev/null 2>&1 ; then
         workstation_exists=1
-        log info "Existing VM Check Result $extra_message: guest '${guest_full_vm_name_workstation}' exists."
+        log info "Existing VM Check Result ${extra_message}: guest '${guest_full_vm_name_workstation}' exists."
       fi
       ## Find discrepancies.
       if [ "${workstation_exists}" = "0" ] && [ "${gateway_exists}" = "1" ]; then
-        log info "Existing VM Check Result $extra_message: Gateway exists but Workstation doesn't."
+        log info "Existing VM Check Result ${extra_message}: Gateway exists but Workstation doesn't."
       fi
       if [ "${workstation_exists}" = "1" ] && [ "${gateway_exists}" = "0" ]; then
-        log info "Existing VM Check Result $extra_message: Workstation exists but Gateway doesn't."
+        log info "Existing VM Check Result ${extra_message}: Workstation exists but Gateway doesn't."
       fi
       vm_or_vms_already_existing_test_result=false
       if [ "${workstation_exists}" = "1" ] || [ "${gateway_exists}" = "1" ]; then
@@ -1094,18 +1107,18 @@ check_vm_registered_virtualbox() {
       fi
       if [ "${vm_or_vms_already_existing_test_result}" = "false" ]; then
         ## Both guests are still non-existing. Therefore return from this function.
-        log info "Existing VM Check Result $extra_message: None existing yet, ok."
+        log info "Existing VM Check Result ${extra_message}: None existing yet, ok."
         return 0
       fi
-      log notice "Existing VM Check Result $extra_message: Virtual Machine(s) have been imported previously."
+      log notice "Existing VM Check Result ${extra_message}: Virtual Machine(s) have been imported previously."
       ;;
     kicksecure)
       vm_or_vms_already_existing_test_result=false
       if ! run_as_target_user "${vboxmanage_locale_english[@]}" showvminfo "${guest_full_vm_name_kicksecure}" >/dev/null 2>&1 ; then
-        log info "Existing VM Check Result $extra_message: None existing yet, ok."
+        log info "Existing VM Check Result ${extra_message}: None existing yet, ok."
         return 0
       fi
-      log notice "Existing VM Check Result $extra_message: Virtual Machine(s) were imported previously."
+      log notice "Existing VM Check Result ${extra_message}: Virtual Machine(s) were imported previously."
       vm_or_vms_already_existing_test_result=true
       ;;
   esac
@@ -1156,18 +1169,18 @@ check_vm_file_exists_virtualbox_general() {
   esac
 
   for file_name_item in "${file_name_list[@]}" ; do
-    if test_file -e "$file_name_item" ; then
+    if test_file -e "${file_name_item}" ; then
       log warn "VM Import Check: Inconsistent state.
 This might have happened by previously using VirtualBox GUI 'Remove...' with 'Remove only' instead of 'Delete all files'.
-File '$file_name_item' exists but there is no associated VM registered in VirtualBox."
+File '${file_name_item}' exists but there is no associated VM registered in VirtualBox."
       if [ -z "${import_only}" ]; then
         die 1 "VM Import Check: Aborting because of inconsistent state and missing '--import-only' option."
       fi
       if [ "${destroy_existing_guest}" != "1" ]; then
         die 1 "VM Import Check: Aborting because of inconsistent state and missing '--destroy-existing-guest' option."
       fi
-      log warn "VM superfluous '.vbox' File Deletion: Removing file '$file_name_item' via '--import-only=${import_only}' and '--destroy-existing-guest' option."
-      log_run warn rm -f -- "${file_name_item}"
+      log warn "VM superfluous '.vbox' File Deletion: Removing file '${file_name_item}' via '--import-only=${import_only}' and '--destroy-existing-guest' option."
+      log_run warn "${safe_rm_cmd[@]}" -f -- "${file_name_item}"
     fi
   done
 }
@@ -1280,18 +1293,18 @@ check_guest_boot() {
       ;;
   esac
 
-  if [ "$kernel_module_has_been_loaded" = "false" ]; then
+  if [ "${kernel_module_has_been_loaded}" = "false" ]; then
     ## Kernel modules have not been loaded.
     user_warned_potential_startup_issue=true
     log warn "Debugging information:
-Secure Boot Status: '$secure_boot_status_pretty'
-Kernel module has been loaded: '$kernel_module_has_been_loaded'
-Kernel modules can be loaded: '$kernel_modules_can_be_loaded' (sysctl kernel.modules_disabled=0 is set.)
-Only signed kernel modules can be loaded: '$modules_signed_only'
-Kernel module vboxdrv signer: '$kernel_module_signer'
-kernel_module_modprobe_output ('$sucmd modprobe vboxdrv'): '$kernel_module_modprobe_output'"
+Secure Boot Status: '${secure_boot_status_pretty}'
+Kernel module has been loaded: '${kernel_module_has_been_loaded}'
+Kernel modules can be loaded: '${kernel_modules_can_be_loaded}' (sysctl kernel.modules_disabled=0 is set.)
+Only signed kernel modules can be loaded: '${modules_signed_only}'
+Kernel module vboxdrv signer: '${kernel_module_signer}'
+kernel_module_modprobe_output ('${sucmd} modprobe vboxdrv'): '${kernel_module_modprobe_output}'"
 
-    if [ "$kernel_modules_can_be_loaded" = "true" ]; then
+    if [ "${kernel_modules_can_be_loaded}" = "true" ]; then
       log error "${underline}VirtualBox Installation Result:${nounderline} ${red}${bold}'FAIL'${nobold}${nocolor} - because kernel modules have not been loaded yet.
   - Kernel modules can be loaded in theory, should be loaded by now, but are not.
   - This is a VirtualBox installation issue."
@@ -1424,13 +1437,13 @@ extract_vm_name_from_virtualbox_ova() {
   has awk || die 1 "${underline}extract_vm_name_from_virtualbox_ova:${nounderline} Package 'gawk' is missing. Please install."
   output="$1"
   system_number="$2"
-  a=$(printf '%s' "$output" | grep --max-count=1 --after-context=4 -- "Virtual system $system_number:")
-  b=$(printf '%s' "$a" | grep -- "Suggested VM name")
-  c=$(printf '%s' "$b" | grep -oP -- '"\K[^"]+')
+  a=$(printf '%s' "${output}" | grep --max-count=1 --after-context=4 -- "Virtual system ${system_number}:")
+  b=$(printf '%s' "${a}" | grep -- "Suggested VM name")
+  c=$(printf '%s' "${b}" | grep -oP -- '"\K[^"]+')
   ## Take first word only because VirtualBox would suggest name "Whonix-Gateway-LXQt 1" in case,
   ## a VM "Whonix-Gateway-LXQt" is already registered in VirtualBox.
-  d=$(printf '%s' "$c" | awk '{print $1}')
-  printf '%s' "$d"
+  d=$(printf '%s' "${c}" | awk '{print $1}')
+  printf '%s' "${d}"
 }
 
 
@@ -1481,7 +1494,7 @@ import_virtualbox() {
     do_continue=yes
     log info "VM Import Check Result: Continue because no VM(s) exist yet."
   fi
-  if [ "$do_continue" = "no" ]; then
+  if [ "${do_continue}" = "no" ]; then
     log notice "VM Import Check Result: Skipping to import, because Virtual Machine(s) have been imported previously and not using '--import-only' option."
     return 0
   fi
@@ -1496,19 +1509,19 @@ import_virtualbox() {
   else
     case "${guest}" in
       whonix)
-        vsys_0_actual=$(extract_vm_name_from_virtualbox_ova "$output" 0) || true
-        vsys_1_actual=$(extract_vm_name_from_virtualbox_ova "$output" 1) || true
+        vsys_0_actual=$(extract_vm_name_from_virtualbox_ova "${output}" 0) || true
+        vsys_1_actual=$(extract_vm_name_from_virtualbox_ova "${output}" 1) || true
         if [ ! "${guest_full_vm_name_gateway}" = "${vsys_0_actual}" ]; then
           die 105 "${underline}VM Import:${nounderline} BUG: vsys0 is actually '${vsys_0_actual}', not '${guest_full_vm_name_gateway}'."
         fi
-        if [ ! "${guest_full_vm_name_workstation}" = "$vsys_1_actual" ]; then
+        if [ ! "${guest_full_vm_name_workstation}" = "${vsys_1_actual}" ]; then
           die 105 "${underline}VM Import:${nounderline} BUG: vsys1 is actually '${vsys_1_actual}', not '${guest_full_vm_name_workstation}'."
         fi
         log info "vsys_0_actual: ${vsys_0_actual}"
         log info "vsys_1_actual: ${vsys_1_actual}"
       ;;
       kicksecure)
-        vsys_0_actual=$(extract_vm_name_from_virtualbox_ova "$output" 0) || true
+        vsys_0_actual=$(extract_vm_name_from_virtualbox_ova "${output}" 0) || true
         if [ ! "${guest_full_vm_name_kicksecure}" = "${vsys_0_actual}" ]; then
           die 105 "${underline}VM Import:${nounderline} BUG: vsys0 is actually '${vsys_0_actual}', not '${guest_full_vm_name_kicksecure}'."
         fi
@@ -1592,7 +1605,7 @@ start_virtualbox_gui() {
   run_background=1
   log_run notice virtualbox
   if [ "${dry_run}" != "1" ]; then
-    log notice "VirtualBox Manager Startup Result: Launched VirtualBox GUI into the background. (pid: '$background_pid')"
+    log notice "VirtualBox Manager Startup Result: Launched VirtualBox GUI into the background. (pid: '${background_pid}')"
   fi
   run_background=""
 }
@@ -1606,11 +1619,11 @@ virtualbox_start_failed() {
 
   local likely_cause
   likely_cause=""
-  if [ "$user_warned_potential_startup_issue" = "true" ]; then
+  if [ "${user_warned_potential_startup_issue}" = "true" ]; then
     likely_cause="- This is likely happening due to the warnings that have been reported above."
   fi
   die 106 "${underline}Virtual Machine Startup Result:${nounderline} ${red}${bold}FAIL${nobold}${nocolor}
-  $likely_cause
+  ${likely_cause}
   - The installer succeeded with download and import, but
   - failed to start the virtual machines (VMs).
   - The root cause for this issue is likely not the installer.
@@ -1721,7 +1734,7 @@ check_installed_debian() {
 
   status="$(dpkg-query --show --showformat='${db:Status-Status}' "$1" 2>&1)"
   # shellcheck disable=SC2181
-  if [ "$?" != 0 ] || [ "$status" != "installed" ]; then
+  if [ "$?" != 0 ] || [ "${status}" != "installed" ]; then
     return 1
   fi
   return 0
@@ -1737,7 +1750,7 @@ disable_kvm_virt_at_load() {
   if test -f /etc/modprobe.d/disable-kvm-virt-at-load.conf; then
     log notice "Kernel modules configuration: disabling previous KVM enable_virt_at_load workaround.
 https://forums.kicksecure.com/t/vboxdrv-service-fails-to-start/1730/7"
-    root_cmd_loglevel=notice root_cmd rm --force -- /etc/modprobe.d/disable-kvm-virt-at-load.conf
+    root_cmd_loglevel=notice root_cmd "${safe_rm_cmd[@]}" --force -- /etc/modprobe.d/disable-kvm-virt-at-load.conf
     root_cmd_loglevel=notice root_cmd touch /var/run/reboot-required
   fi
 
@@ -1856,7 +1869,7 @@ install_package_fedora_common() {
   if has dnf5; then
     dnf_plugins_package='dnf5-plugins'
   fi
-  install_pkg torsocks "$dnf_plugins_package" procps-ng
+  install_pkg torsocks "${dnf_plugins_package}" procps-ng
 
   ## Conflicting packages requires '--allowerasing'.
   if "${pkg_mngr_check_installed[@]}" lsb_release >/dev/null 2>&1 ||
@@ -1879,7 +1892,7 @@ install_package_debian_common() {
 
   if [[ -v DIST_APTGETOPT_SERIALIZED ]]; then
     # shellcheck disable=SC2128
-    mapfile -t DIST_APTGETOPT <<< "$DIST_APTGETOPT_SERIALIZED"
+    mapfile -t DIST_APTGETOPT <<< "${DIST_APTGETOPT_SERIALIZED}"
   else
     DIST_APTGETOPT_SERIALIZED=()
     if [[ -v DIST_APTGETOPT ]]; then
@@ -1913,10 +1926,10 @@ install_package_debian_common() {
     ## still indicates that APT has work to do.
     upgrade_check_grep_output="$(printf '%s' "${upgrade_check_output}" | grep -e '^Inst' -e '^Conf')" || true
     number_upgradable=0
-    if [ -n "$upgrade_check_grep_output" ]; then
+    if [ -n "${upgrade_check_grep_output}" ]; then
       number_upgradable="$(printf '%s' "${upgrade_check_grep_output}" | wc -l)"
     fi
-    if [ "$number_upgradable" -gt "0" ]; then
+    if [ "${number_upgradable}" -gt "0" ]; then
       return 1
     fi
     return 0
@@ -1947,8 +1960,8 @@ If that doesn't resolve the issue, consider reaching out to your operating syste
   ## Hence only doing it for '--dev'.
   if [ "${dev}" = "1" ]; then
     for sources_list_d_file in /etc/apt/sources.list /etc/apt/sources.sources /etc/apt/sources.list.d/*; do
-      if [ -f "$sources_list_d_file" ]; then
-        cat -- "$sources_list_d_file"
+      if [ -f "${sources_list_d_file}" ]; then
+        cat -- "${sources_list_d_file}"
       fi
     done
   fi
@@ -1956,7 +1969,7 @@ If that doesn't resolve the issue, consider reaching out to your operating syste
   update_sources
   check_upgrades_simulation
 
-  if [ "$debian_derivative_detected" = "1" ]; then
+  if [ "${debian_derivative_detected}" = "1" ]; then
     install_pkg lsb-release procps
   fi
 
@@ -1967,8 +1980,8 @@ If that doesn't resolve the issue, consider reaching out to your operating syste
     return 0
   fi
 
-  true "debian_testing_or_unstable_detected: $debian_testing_or_unstable_detected"
-  true "kali_derivative_detected: $kali_derivative_detected"
+  true "debian_testing_or_unstable_detected: ${debian_testing_or_unstable_detected}"
+  true "kali_derivative_detected: ${kali_derivative_detected}"
 
   ## https://bugs.debian.org/1066313
   #if [ "${debian_testing_or_unstable_detected}" != "1" ] && [ "${kali_derivative_detected}" != "1" ]; then
@@ -1989,10 +2002,10 @@ add_user_to_vbox_group() {
 
   if [ "${debian_derivative_detected}" = "1" ]; then
     root_cmd adduser "${id_of_user}" "${virtualbox_linux_user_group}" || \
-      die 1 "${underline}Linux Group Configuration: adduser to Linux user group virtualbox:${nounderline} Failed to add user '$id_of_user' to group '${virtualbox_linux_user_group}'."
+      die 1 "${underline}Linux Group Configuration: adduser to Linux user group virtualbox:${nounderline} Failed to add user '${id_of_user}' to group '${virtualbox_linux_user_group}'."
   else
     root_cmd usermod --append --groups "${virtualbox_linux_user_group}" "${id_of_user}" || \
-      die 1 "${underline}Linux Group Configuration: adduser to Linux user group virtualbox:${nounderline} Failed to add user '$id_of_user' to group '${virtualbox_linux_user_group}'."
+      die 1 "${underline}Linux Group Configuration: adduser to Linux user group virtualbox:${nounderline} Failed to add user '${id_of_user}' to group '${virtualbox_linux_user_group}'."
   fi
 }
 
@@ -2042,22 +2055,22 @@ kernel_modules_check() {
   fi
 
   ## Debugging.
-  log info "Command executing: $ $sucmd -- modinfo --field signer vboxdrv"
+  log info "Command executing: $ ${sucmd} -- modinfo --field signer vboxdrv"
   if kernel_module_signer=$(root_cmd_loglevel="echo" root_cmd modinfo --field signer vboxdrv 2>&1) ; then
-    log info "VirtualBox Kernel Module Signer: '$kernel_module_signer'"
+    log info "VirtualBox Kernel Module Signer: '${kernel_module_signer}'"
   else
     user_warned_potential_startup_issue=true
-    log warn "${underline}VirtualBox Kernel Module Signer${nounderline}: '$kernel_module_signer'"
+    log warn "${underline}VirtualBox Kernel Module Signer${nounderline}: '${kernel_module_signer}'"
   fi
 
   ## Debugging.
   ## modprobe should be automatic but if it fails, figure out why.
-  log notice "Command executing: $ $sucmd -- modprobe vboxdrv"
+  log notice "Command executing: $ ${sucmd} -- modprobe vboxdrv"
   if kernel_module_modprobe_output="$(root_cmd_loglevel="echo" root_cmd modprobe vboxdrv 2>&1)" ; then
-    log info "VirtualBox Kernel Module modprobe output: '$kernel_module_modprobe_output'"
+    log info "VirtualBox Kernel Module modprobe output: '${kernel_module_modprobe_output}'"
   else
     user_warned_potential_startup_issue=true
-    log warn "${underline}VirtualBox Kernel modprobe output${nounderline}: '$kernel_module_modprobe_output'"
+    log warn "${underline}VirtualBox Kernel modprobe output${nounderline}: '${kernel_module_modprobe_output}'"
   fi
 }
 
@@ -2650,8 +2663,8 @@ Pin-Priority: 25
 Package: *
 Pin: release n=sid
 Pin-Priority: 25
-" | root_cmd tee -- "$file" ||
-    die 1 "${underline}APT Preferences Configuration Writer:${nounderline} Failed to write to file: '$file'"
+" | root_cmd tee -- "${file}" ||
+    die 1 "${underline}APT Preferences Configuration Writer:${nounderline} Failed to write to file: '${file}'"
 
   if [ "${use_deb822_sources}" = 'yes' ]; then
     log notice "APT Repository Configuration: Adding 'unstable' ${connection_type_debsource} repository to ${unstable_file_deb822source}"
@@ -2719,48 +2732,48 @@ virtualbox_installation_failure_debug() {
 
   virtualbox_dkms_main_folder=/var/lib/dkms/virtualbox
 
-  if [ ! -d "$virtualbox_dkms_main_folder" ]; then
-    log notice "VirtualBox Installation Debug: folder '$virtualbox_dkms_main_folder' does not exist."
+  if [ ! -d "${virtualbox_dkms_main_folder}" ]; then
+    log notice "VirtualBox Installation Debug: folder '${virtualbox_dkms_main_folder}' does not exist."
     return 0
   fi
 
   ## Use find to avoid parsing ls output, which may be unsafe with special
   ## characters in directory names.
-  log_run notice ls --format=single-column --sort=time "$virtualbox_dkms_main_folder"
+  log_run notice ls --format=single-column --sort=time "${virtualbox_dkms_main_folder}"
   # shellcheck disable=SC2012
-  latest_folder=$(find "$virtualbox_dkms_main_folder" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %f\n' | sort -rn | head --lines=1 | cut -d' ' -f2-) || true
-  if [ "$latest_folder" = "" ]; then
-    log notice "VirtualBox Installation Debug: latest_folder in '$virtualbox_dkms_main_folder' is empty, could not be determined."
-    log_run notice ls -la "$virtualbox_dkms_main_folder" || true
+  latest_folder=$(find "${virtualbox_dkms_main_folder}" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %f\n' | sort -rn | head --lines=1 | cut -d' ' -f2-) || true
+  if [ "${latest_folder}" = "" ]; then
+    log notice "VirtualBox Installation Debug: latest_folder in '${virtualbox_dkms_main_folder}' is empty, could not be determined."
+    log_run notice ls -la "${virtualbox_dkms_main_folder}" || true
     return 0
   fi
 
-  log notice "VirtualBox Installation Debug: latest_folder: '$latest_folder'"
+  log notice "VirtualBox Installation Debug: latest_folder: '${latest_folder}'"
 
   virtualbox_dkms_latest_folder="${virtualbox_dkms_main_folder}/${latest_folder}"
 
-  if [ ! -d "$virtualbox_dkms_latest_folder" ]; then
-    log notice "VirtualBox Installation Debug: virtualbox_dkms_latest_folder '$virtualbox_dkms_latest_folder' is not a directory."
-    log_run notice ls -la "$virtualbox_dkms_latest_folder" || true
+  if [ ! -d "${virtualbox_dkms_latest_folder}" ]; then
+    log notice "VirtualBox Installation Debug: virtualbox_dkms_latest_folder '${virtualbox_dkms_latest_folder}' is not a directory."
+    log_run notice ls -la "${virtualbox_dkms_latest_folder}" || true
     return 0
   fi
 
   make_log="${virtualbox_dkms_latest_folder}/build/make.log"
 
-  if [ ! -f "$make_log" ]; then
-    log notice "VirtualBox Installation Debug: make_log '$make_log' does not exist."
-    log_run notice ls -la "$virtualbox_dkms_latest_folder" || true
+  if [ ! -f "${make_log}" ]; then
+    log notice "VirtualBox Installation Debug: make_log '${make_log}' does not exist."
+    log_run notice ls -la "${virtualbox_dkms_latest_folder}" || true
     return 0
   fi
 
-  if [ ! -r "$make_log" ]; then
-    log notice "VirtualBox Installation Debug: make_log '$make_log' not readable."
-    log_run notice ls -la "$virtualbox_dkms_latest_folder" || true
-    log_run notice ls -la "$make_log" || true
+  if [ ! -r "${make_log}" ]; then
+    log notice "VirtualBox Installation Debug: make_log '${make_log}' not readable."
+    log_run notice ls -la "${virtualbox_dkms_latest_folder}" || true
+    log_run notice ls -la "${make_log}" || true
     return 0
   fi
 
-  log_run notice cat -- "$make_log" || true
+  log_run notice cat -- "${make_log}" || true
 }
 
 
@@ -2812,7 +2825,7 @@ ${underline}VirtualBox Package Version Detection:${nounderline} 'FAIL'"
 
   ## This is to make sure loglevel info message is shown:
   ## Package already installed: $virtualbox_qt_package_name
-  install_pkg "$virtualbox_qt_package_name"
+  install_pkg "${virtualbox_qt_package_name}"
 
   install_virtualbox_fedora_common_end
 }
@@ -2829,7 +2842,7 @@ get_virtualbox_version_debian() {
     virtualbox_qt_package_name=virtualbox-"${virtualbox_version}"
     ## Package virtualbox-guest-additions-iso is unavailable from Oracle repository.
     virtualbox_guest_additions_iso_package_name=""
-    if [ -z "$virtualbox_version" ]; then
+    if [ -z "${virtualbox_version}" ]; then
       ## return non-zero late to avoid unbound variable virtualbox_qt_package_name.
       return 1
     fi
@@ -2869,11 +2882,12 @@ install_virtualbox_debian_common_begin() {
   if [ "${oracle_repo}" != '1' ]; then
     for pkg in $("${virtualbox_cache_version_cmd[@]}" | cut -d " " -f1); do
       if "${pkg_mngr_check_installed[@]}" "${pkg}" >/dev/null 2>&1; then
-        die 108 "Found Oracle VirtualBox package but option '--oracle-repo' was not set! Run with the option '--oracle-repo' or uninstall the package '$pkg' and then rerun this script."
+        die 108 "Found Oracle VirtualBox package but option '--oracle-repo' was not set! Run with the option '--oracle-repo' or uninstall the package '${pkg}' and then rerun this script."
       fi
     done
   fi
   if has vboxmanage; then
+    ## style-ok: no-has -- 'command -v' resolves the binary's path here.
     vbox_manage_full_path="$(command -v vboxmanage)"
     if ! dpkg --search "${vbox_manage_full_path}" >/dev/null ; then
       die 109 "Found Oracle VirtualBox installed from tarball/source. Using a package manager can conflict with your already manually installed VirtualBox. Uninstall VirtualBox first and then rerun this script. Use the option '--oracle-repo' if you want to install from the Oracle repository."
@@ -3110,8 +3124,14 @@ get_transfer_cmd() {
 
 
 ## Set default traps
+handle_exit_trap() {
+  local exit_code=$?
+
+  handle_exit "${exit_code}" "${BASH_LINENO[0]:-0}"
+}
+
 set_trap() {
-  trap 'handle_exit $? ${LINENO:-}' ERR EXIT HUP INT QUIT ABRT ALRM TERM
+  trap handle_exit_trap ERR EXIT HUP INT QUIT ABRT ALRM TERM
 }
 
 
@@ -3160,7 +3180,7 @@ get_system_stat() {
   fi
 
   df_output="$(run_as_target_user df --output=avail -BG "${directory_prefix}")"
-  free_space_available="$(printf '%s' "$df_output" |
+  free_space_available="$(printf '%s' "${df_output}" |
                 awk '/G$/{print substr($1, 1, length($1)-1)}')"
 
   ## TODO: do not hardcode 10 GB - Kicksecure vs Whonix
@@ -3200,7 +3220,7 @@ get_system_stat() {
   ## live-status-detected is provided only if package helper-scripts is installed.
   if has live-status-detected; then
     live_status_detected="$(live-status-detected)" || true
-    if [ "$live_status_detected" = "true" ]; then
+    if [ "${live_status_detected}" = "true" ]; then
       log warn "Live Mode Detected: Yes, live mode detected. Unusual. Most users use this installer in persistent mode. But can be OK."
       live_status_extra_message="  - ${underline}Live Mode detected:${nounderline} Yes. NOTE:
 
@@ -3213,7 +3233,7 @@ Running this installer in Live Mode will usually not work unless the system has 
 - If this is grub-live mode: Boot into persistent mode.
   For more information, refer to:
   ${url_version_domain}/wiki/Persistent_Mode"
-    elif [ "$live_status_detected" = "false" ]; then
+    elif [ "${live_status_detected}" = "false" ]; then
       live_status_extra_message=""
       log info "Live Mode Detected: No, live mode not detected, ok."
     else
@@ -3225,7 +3245,7 @@ Running this installer in Live Mode will usually not work unless the system has 
     live_status_extra_message=""
   fi
 
-  if [ "${free_space_available}" -lt "$free_space_required" ]; then
+  if [ "${free_space_available}" -lt "${free_space_required}" ]; then
     die 101 "\
 ${underline}Free Disk Space Check Result:${nounderline} 'FAIL.' - Insufficient free disk space!
 
@@ -3237,7 +3257,7 @@ Debugging information:
 - Command to test the available free space on ${directory_prefix}:
 df --output=avail -BG \"${directory_prefix}\"
 - Available free space result:
-$df_output"
+${df_output}"
   fi
 
   log info "Free Disk Space Check Result: Success."
@@ -3251,7 +3271,7 @@ check_tor_proxy() {
   log notice "Testing SOCKS proxy: '${proxy}'"
   expected_response_header="HTTP/1.0 501 Tor is not an HTTP Proxy"
   log info "Expected response header:"
-  log info "'$expected_response_header'"
+  log info "'${expected_response_header}'"
   cmd_check_proxy=( 'env' 'UWT_DEV_PASSTHROUGH=1' 'curl' '--silent' '--show-error' '--max-time' '3' '--head' "http://${proxy}" )
   log info "Command used to check if proxy is functional:"
   log info "${cmd_check_proxy[*]}"
@@ -3434,14 +3454,14 @@ get_version() {
   log info "Version Detection: cmd_raw_version: '${cmd_raw_version[*]}'"
   raw_version="$("${cmd_raw_version[@]}")"
   ## First line only.
-  guest_version="$(printf '%s' "$raw_version" | head -n 1)"
+  guest_version="$(printf '%s' "${raw_version}" | head -n 1)"
   guest_version="$(printf '%s' "${guest_version}" | sed "s/<.*//")"
   ## Distrust the API version
   ## Block anything that is not made purely out of numbers and dots
   ## Not printing queried version to avoid it showing a very long version
   ## that could inhibit the user from seeing the error message.
   ## The user would still see a failed exit code.
-  [ "${guest_version%%*[^0-9.]*}" ] ||
+  [ -n "${guest_version%%*[^0-9.]*}" ] ||
     die 1 "${underline}Version Check Result:${nounderline} Invalid guest version: contains unexpected characters."
   ## block string containing more than 12 chars
   [ "${#guest_version}" -le 12 ] ||
@@ -3547,9 +3567,15 @@ get_virtualization() {
   virt_flag="$(root_cmd grep -m1 -w -- '^flags[[:blank:]]*:' /proc/cpuinfo | grep -wo -E -- '(vmx|svm)' || true)"
 
   case "${virt_flag:=none}" in
-    vmx) brand=intel;;
-    svm) brand=amd;;
-    *) brand=unknown;;
+    vmx)
+      brand=intel
+      ;;
+    svm)
+      brand=amd
+      ;;
+    *)
+      brand=unknown
+      ;;
   esac
 
 #  if compgen -G "/sys/kernel/iommu_groups/*/devices/*" > /dev/null; then
@@ -3578,7 +3604,7 @@ get_virtualization() {
       ;;
   esac
 
-  if [ "$virt_detection_success" = "false" ]; then
+  if [ "${virt_detection_success}" = "false" ]; then
     user_warned_potential_startup_issue=true
     log warn "  - The virtualization detection feature of this installer may not be flawless and could potentially fail to detect virtualization support (this is known as a 'false negative')."
     if [ "${hypervisor}" = "virtualbox" ]; then
@@ -3932,14 +3958,14 @@ check_hash() {
 
 check_signature_test() {
   log info "Unit testing signature, expecting non-zero exit code."
-  run_as_target_user rm -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
+  run_as_target_user "${safe_rm_cmd[@]}" -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
   run_as_target_user cp -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums" "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
-  printf '\n' | run_as_target_user tee -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test" >/dev/null
+  printf '%s\n' "" | run_as_target_user tee -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test" >/dev/null
   if ! check_signature "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test" 2>/dev/null; then
-    run_as_target_user rm -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
+    run_as_target_user "${safe_rm_cmd[@]}" -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
     log info "Received expected non-zero exit code from unit test."
   else
-    run_as_target_user rm -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
+    run_as_target_user "${safe_rm_cmd[@]}" -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
     die 104 "${underline}SHA512 Hash Verification (unit test):${nounderline} 'FAIL' - received a zero as exit code, expected non-zero."
   fi
 }
@@ -3947,14 +3973,14 @@ check_signature_test() {
 
 check_hash_test() {
   log info "Unit testing checksum, expecting non-zero exit code."
-  run_as_target_user rm -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
+  run_as_target_user "${safe_rm_cmd[@]}" -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
   run_as_target_user cp -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums" "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
-  printf '\n' | run_as_target_user tee -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test" >/dev/null
+  printf '%s\n' "" | run_as_target_user tee -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test" >/dev/null
   if ! check_hash "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test" 2>/dev/null; then
-    run_as_target_user rm -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
+    run_as_target_user "${safe_rm_cmd[@]}" -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
     log info "Received expected non-zero exit code from unit test."
   else
-    run_as_target_user rm -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
+    run_as_target_user "${safe_rm_cmd[@]}" -f -- "${directory_prefix}/${guest_file}.${guest_file_ext}.sha512sums.test"
     die 104 "${underline}SHA512 Hash Verification (unit test):${nounderline} 'FAIL' - received a zero as exit code, expected non-zero."
   fi
 }
@@ -4110,7 +4136,6 @@ User Options:
  -h, --help          Show this help message and exit.
 
 Developer options:
- --allow-errors      Continue execution despite errors. Dirty mode. Use with caution.
  --mirror=<number>   Choose a download mirror by index. Defaults to mirror 0 for
                        clearnet and mirror 0 for onion if unspecified.
                        Mirror indices:
@@ -4180,7 +4205,6 @@ set_default() {
   import_only=""
   destroy_existing_guest=""
   testers=""
-  allow_errors=""
   mirror=""
   virtualbox_only=""
   target_user=""
@@ -4264,7 +4288,6 @@ print_getopt() {
   import_only=${import_only}
   destroy_existing_guest=${destroy_existing_guest}
   testers=${testers}
-  allow_errors=${allow_errors}
   mirror=${mirror}
   virtualbox_only=${virtualbox_only}
   target_user=${target_user}"
@@ -4384,10 +4407,6 @@ parse_opt() {
       import-only)
         get_arg
         import_only="${arg}"
-        ;;
-      ## --allow-errors
-      allow-errors)
-        allow_errors=1
         ;;
       ## --redownload
       redownload)
@@ -4537,7 +4556,7 @@ parse_opt() {
     directory_prefix_parent="$(dirname -- "${directory_prefix}")"
     if ! test_file -d "${directory_prefix_parent}"; then
       if [ "${id_of_user}" = 'sysmaint' ]; then
-        if [ "$directory_prefix_parent" = '/home/user' ]; then
+        if [ "${directory_prefix_parent}" = '/home/user' ]; then
           die 1 "Directory check result: Parent directory doesn't exist: '${directory_prefix_parent}'
 The home folder for Linux user account 'user' doesn't exist.
 You need to boot into a user session at least once.
@@ -4606,10 +4625,6 @@ Reboot into sysmaint session and rerun this installer."
       guest_version="18.0.9.5"
     fi
   fi
-  if [ "${allow_errors}" = "1" ]; then
-    set +o errexit
-    set +o errtrace
-  fi
 
   case "${hypervisor}" in
     virtualbox)
@@ -4665,20 +4680,20 @@ log_term_and_file() {
 
   temp_folder="$(mktemp --directory)"
   xtrace_fifo="${temp_folder}/xtrace_fifo"
-  mkfifo -m 600 -- "$xtrace_fifo"
+  mkfifo -m 600 -- "${xtrace_fifo}"
 
   if [ "${log_level}" = "debug" ] || test -o xtrace; then
     ## log_level is debug or xtrace is already enabled.
     ## Therefore keep send xtrace to both console and debug file.
-    run_as_target_user tee -a -- "${log_file_debug}" < "$xtrace_fifo" >&2 &
+    run_as_target_user tee -a -- "${log_file_debug}" < "${xtrace_fifo}" >&2 &
   else
-    run_as_target_user tee -a -- "${log_file_debug}" < "$xtrace_fifo" > /dev/null &
+    run_as_target_user tee -a -- "${log_file_debug}" < "${xtrace_fifo}" > /dev/null &
   fi
 
   ## Automatically exists at the end of this script.
   #xtrace_pid="$!"
 
-  exec 9> "$xtrace_fifo"
+  exec 9> "${xtrace_fifo}"
   export BASH_XTRACEFD=9
   set -o xtrace
   xtrace=1

@@ -4,33 +4,50 @@
 ## See the file COPYING for copying conditions.
 
 set -x
+set -o errexit
+set -o nounset
 set -o pipefail
+set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+
+[ -v DIST_APTGETOPT ] || DIST_APTGETOPT=()
+apt_unattended_opts="${apt_unattended_opts:-}"
 
 error_handler() {
-   echo "
+   printf '%s\n' "
 ####################
 ## ERROR detected. #
 ####################
-"
+" >&2
 
    exit 1
 }
 
-trap "error_handler" ERR
+trap error_handler ERR
 
 mkdir --parents -- ~/sources
 
 cd -- ~/sources
 
+## apt_unattended_opts is a deliberately word-split option list.
+# shellcheck disable=SC2086
 apt-get \
    "${DIST_APTGETOPT[@]}" \
-   $apt_unattended_opts \
+   ${apt_unattended_opts} \
    update
 
-for i in $(damngpl --source /var/lib/dpkg/status); do
+if ! damngpl_list="$(damngpl --source /var/lib/dpkg/status)"; then
+   error_handler
+fi
+
+## damngpl_list is a deliberately word-split package list.
+# shellcheck disable=SC2086
+for i in ${damngpl_list}; do
+   # shellcheck disable=SC2086
    apt-get \
       "${DIST_APTGETOPT[@]}" \
-      $apt_unattended_opts \
+      ${apt_unattended_opts} \
       --download-only \
-      source "$i"
+      source "${i}"
 done

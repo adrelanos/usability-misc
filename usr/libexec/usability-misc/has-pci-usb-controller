@@ -3,10 +3,25 @@
 ## Copyright (C) 2025 - 2025 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
 ## See the file COPYING for copying conditions.
 
-command -v lspci >/dev/null || exit 0
+set -o errexit
+set -o nounset
+set -o pipefail
+set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+
+# shellcheck source=../../../../helper-scripts/usr/libexec/helper-scripts/has.sh
+## Sibling repo: absent in an isolated CI checkout, so shellcheck cannot
+## follow it there. The source= path above still documents where it lives.
+##
+## TODO: Don't run shellcheck unless in a derivative-maker source tree.
+# shellcheck disable=SC1091
+source /usr/libexec/helper-scripts/has.sh
+
+has lspci || exit 0
 
 export LC_ALL='C'
-if lspci | grep -q 'USB controller:' ; then
+if lspci | grep -- 'USB controller:' >/dev/null ; then
   exit 0
 fi
 exit 1

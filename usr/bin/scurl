@@ -5,4 +5,11 @@
 
 ## scurl stands for sslcurl
 
+set -o errexit
+set -o nounset
+set -o pipefail
+set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+
 curl --tlsv1.3 --proto =https "$@"
