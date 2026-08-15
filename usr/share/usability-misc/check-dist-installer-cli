@@ -17,19 +17,19 @@ shopt -s shift_verbose
 
 true "$0: START"
 
-mydir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "${mydir}"
-cd ..
-cd ..
-cd ..
+mydir="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
+cd -- "${mydir}"
+cd -- ..
+cd -- ..
+cd -- ..
 
 command -v sha512sum >/dev/null
 
-hashsum_old="$(sha512sum ./usr/share/usability-misc/dist-installer-cli-standalone)"
+hashsum_old="$(sha512sum -- ./usr/share/usability-misc/dist-installer-cli-standalone)"
 
 ./usr/share/usability-misc/build-dist-installer-cli
 
-hashsum_new="$(sha512sum ./usr/share/usability-misc/dist-installer-cli-standalone)"
+hashsum_new="$(sha512sum -- ./usr/share/usability-misc/dist-installer-cli-standalone)"
 
 if [ ! "${hashsum_old}" = "${hashsum_new}" ]; then
   printf '%s\n' "\
