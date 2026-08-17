@@ -1,9 +1,352 @@
+commit d526d1736e64ae9be1a6484394da14c95b0c7675
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sat Aug 15 10:43:37 2026 -0400
+
+    build
+
+commit 65d9c29c8d56c20b3ed9113ae3ea3576e3918e10
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sat Aug 15 10:38:46 2026 -0400
+
+    fix
+
+commit b5f1d365620e141c44219686cafb38bc94c0222a
+Merge: ebe69a2 461aa8d
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sat Aug 15 10:36:46 2026 -0400
+
+    Merge remote-tracking branch 'ArrayBolt3/arraybolt3/trixie'
+
+commit 461aa8d231a5ab17d74dd41968e363c9bb6f378c
+Author: Aaron Rainbolt <arraybolt3@gmail.com>
+Date:   Thu Aug 13 01:12:56 2026 -0400
+
+    Tweaks, comments, TODOs, FIXMEs
+
+commit c889f2334993ca904ff5d8f7e35cada39d4a12c4
+Merge: 8a91817 ccb0ad9
+Author: Aaron Rainbolt <arraybolt3@gmail.com>
+Date:   Wed Aug 12 23:06:00 2026 -0400
+
+    Merge branch 'ai' into arraybolt3/trixie
+
+commit ccb0ad9eea86aa17f737d79cc0625655d539a94d
+Author: claude (dev182 e09ec5cf-4ebf-4e1b-88e5-55fbac6ef1d3) <noreply@anthropic.com>
+Date:   Wed Aug 12 00:46:46 2026 -0400
+
+    whonix-dev-backup: correct the wiki-backup clone repo name
+
+    The clone URL carried a stray '${project}-' prefix on the repo name --
+    gitlab.com/${project}/${project}-wiki-backup-dump-content-current does not
+    exist (404 for both kicksecure and whonix, verified via git ls-remote), so the
+    unguarded clone aborted the whole backup loop under errexit after the first
+    project. The real repo is gitlab.com/${project}/wiki-backup-dump-content-current
+    (the group is ${project}/). Local dir name keeps its prefix (harmless).
+
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+commit 40aa8868ec6ff9bcfa3bc524afadab24258f6122
+Author: claude (dev182 e09ec5cf-4ebf-4e1b-88e5-55fbac6ef1d3) <noreply@anthropic.com>
+Date:   Mon Aug 10 13:50:13 2026 -0400
+
+    Fix error masking and pipe-close bugs in helper scripts
+
+    gpl_download_sources: send the error banner to stderr and capture the
+    damngpl output with a status check before iterating, so a damngpl
+    failure trips the error handler instead of silently looping over nothing.
+
+    whonix-dev-backup: test for a real git repo (.git) rather than the
+    just-created directory, and stop hiding clone failures with '|| true',
+    so a broken initial clone is not treated as success.
+
+    has-pci-usb-controller: drain the grep consumer instead of 'grep -q',
+    which closes the pipe early and can SIGPIPE lspci under pipefail.
+
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+commit 980482778c7855a18bb9d404b5f483d9699be5fe
+Author: claude (dev179 34adc465-191d-4a9b-857a-2b62c4467b43) <noreply@anthropic.com>
+Date:   Mon Aug 10 13:24:25 2026 -0400
+
+    dist-installer-cli: end_exit clears ERR and tolerates cleanup failure
+
+    github-pr-reviewers (coderabbit major): end_exit reset EXIT/signals but
+    not ERR, and the temp-folder cleanup had no '|| true', so under errexit a
+    cleanup failure re-entered handle_exit_trap or exited with the cleanup
+    status instead of the installer's. Clear ERR too and '|| true' the delete.
+    Regenerate the standalone.
+
+commit 39eee8873db593acd7246ac2a024cf27db5330ae
+Author: claude (dev179 34adc465-191d-4a9b-857a-2b62c4467b43) <noreply@anthropic.com>
+Date:   Mon Aug 10 13:16:24 2026 -0400
+
+    dist-installer-cli: safe_rm_cmd uses a fixed absolute path, not a PATH name
+
+    ai-review (coderabbit major): a bare 'safe-rm' in safe_rm_cmd is resolved
+    through a possibly-hijacked PATH before root_cmd's su/sudo/doas switch.
+    Use '[ -x /usr/bin/safe-rm ]' -> '/usr/bin/safe-rm' (R-090's preferred
+    path test for a fixed install location), coreutils '/usr/bin/rm' fallback.
+    Regenerate the standalone.
+
+commit ef3e146951c0e818ff51d9d8c058ea55af02c104
+Author: claude (dev179 34adc465-191d-4a9b-857a-2b62c4467b43) <noreply@anthropic.com>
+Date:   Mon Aug 10 12:39:33 2026 -0400
+
+    dist-installer-cli: tighten the safe-rm fallback comment; regenerate standalone
+
+commit e8f436062c23bd0f7310c1a2ae07d9787d6d3f37
+Author: claude (dev179 34adc465-191d-4a9b-857a-2b62c4467b43) <noreply@anthropic.com>
+Date:   Mon Aug 10 12:14:43 2026 -0400
+
+    dist-installer-cli: resolve safe-rm to a binary path (survives sudo/su/doas)
+
+    ai-review (codex + agy, both P1): the safe-rm shell-function fallback is
+    not visible to a child spawned by root_cmd's su/sudo/doas, so the KVM
+    config cleanup and the hash/signature checks (which delete via root_cmd /
+    run_as_target_user) crashed with 'command not found' on a plain host
+    without helper-scripts.
+
+    Resolve safe-rm once to an ARRAY -- 'safe-rm' when the binary is present
+    (crosses the privilege boundary), else the coreutils '/usr/bin/rm' by
+    absolute path (a real executable a privilege-switch child can exec).
+    Every rm call site uses "${safe_rm_cmd[@]}". Verified in-sandbox: with
+    the binary hidden, a sudo delete via the fallback succeeds.
+
+    Regenerate the standalone.
+
+commit 13f0b561f8df94232743c684ba038d0d45ade0f6
+Author: claude (dev179 34adc465-191d-4a9b-857a-2b62c4467b43) <noreply@anthropic.com>
+Date:   Mon Aug 10 12:04:59 2026 -0400
+
+    dist-installer-cli: deprecate --allow-errors; stub safe-rm; strict + style cleanup
+
+    - Deprecate the --allow-errors developer option entirely: option parser,
+      help text, man page, bash/zsh completions, and the 'set +o errexit /
+      errtrace' block it drove. No legacy, no leftovers.
+    - Stub safe-rm when the helper-scripts binary is absent (the standalone
+      runs on plain Debian/Fedora/... without helper-scripts), mirroring the
+      stecho / sanitize-echo shims; convert every rm call site to safe-rm.
+    - Add the shopt half (inherit_errexit, shift_verbose) to the guarded
+      strict-mode block.
+    - Style/gate cleanup: brace all variable refs (R-020/SC2250), trap ->
+      named function (R-051), multi-line case arms (R-070), printf newline
+      form (R-030/R-031), explicit -n test (SC2244), 'command -v' path-
+      resolution waiver (R-090).
+
+commit 89666b258a3751dc5cd560c87a2f88ddd6c469ac
+Author: claude (dev179 34adc465-191d-4a9b-857a-2b62c4467b43) <noreply@anthropic.com>
+Date:   Mon Aug 10 12:04:35 2026 -0400
+
+    build
+
+    Regenerate dist-installer-cli-standalone from the cleaned source
+    (autogenerated by build-dist-installer-cli; do not hand-edit).
+
+commit 4fdb8709a09bee01bbe8923425f4955c43b88b30
+Merge: 3af0b41 9aa44a5
+Author: claude (dev179 34adc465-191d-4a9b-857a-2b62c4467b43) <noreply@anthropic.com>
+Date:   Mon Aug 10 11:05:27 2026 -0400
+
+    Merge master (upstream sync) into ai
+
+commit 9aa44a5db89e0ab40d61027f91dea09cb8815935
+Merge: 3be6ae3 ebe69a2
+Author: claude (dev179 34adc465-191d-4a9b-857a-2b62c4467b43) <noreply@anthropic.com>
+Date:   Mon Aug 10 11:04:08 2026 -0400
+
+    Merge github-kicksecure/master (upstream) into master
+
+    Bring in upstream: dist-installer-cli sanitize-echo stub + standalone
+    regenerations. Fork master retains org-ai-assisted CodeQL CI (PR #19).
+
+commit ebe69a2cfe08ca333a3387ebcbbc4add0050067c
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Mon Aug 10 10:26:57 2026 -0400
+
+    build
+
+commit 6a1b52910b461bde55de3dfadb5fe159e725b938
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Mon Aug 10 10:26:04 2026 -0400
+
+    dist-installer-cli: stub sanitize-echo if unavailable
+
+commit 648ab3a0a5e5f1fa9eecdf822f3ef69d69623028
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Mon Aug 10 10:22:44 2026 -0400
+
+    build
+
+commit 647b82dc4892cd2799a7371c49875c3e8b7748c1
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Mon Aug 10 09:54:28 2026 -0400
+
+    build
+
+commit 3af0b413e44861e8cc22a86570fbef9cecf9f732
+Author: claude (dev163 38f9745c-aed1-4fb4-b6ae-9899f20f8de2) <noreply@anthropic.com>
+Date:   Fri Aug 7 07:16:57 2026 -0400
+
+    fix shellcheck directives for an isolated CI checkout
+
+    The gate passed locally but failed (or would fail) in CI. Cause: CI checks
+    each repo out ALONE, while locally they sit side by side as submodules
+    under derivative-maker/packages. A '# shellcheck source=' climbing out of
+    the repo ('../../../../helper-scripts/...') therefore resolves here and
+    not there, so shellcheck reports SC1091 and the gate fails on a commit
+    that looked clean.
+
+    The source= paths are kept -- they document where the file actually lives
+    -- and each is paired with a 'disable=SC1091' so an absent sibling is
+    tolerated. Same shape already used in security-misc master.
+
+    Follow-on findings from the same isolated run, each with a stated reason
+    rather than a blanket waiver:
+    - SC2154 on systemd_notify: assigned by the sourced systemd-notify.bsh,
+      which shellcheck can no longer follow.
+    - SC2034 on SCRIPTNAME and output_cmd: genuinely unused. suspend-pre's
+      output_cmd toggle is vestigial -- unlike suspend-post the script prints
+      directly -- flagged rather than removed, since wiring it up or dropping
+      it is a maintainer call.
+    - SC1090 on the uwt.d conf glob: a dynamic source, which R-081 prescribes
+      SC1090 for.
+
+    Verified with a new reproducer, ~/strict-pass-tests/ci-repro.sh, which
+    clones the repo on its own and runs the real gate there -- the condition
+    CI actually sees. All six repos: gate exit 0.
+
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit 41e67f30a6b7653bb83fc327b0fe266c03f61c38
+Author: claude (dev163 38f9745c-aed1-4fb4-b6ae-9899f20f8de2) <noreply@anthropic.com>
+Date:   Wed Aug 5 13:12:05 2026 -0400
+
+    44_kb_layout: bash shebang + R-010 strict
+
+    Switch '#!/bin/sh' to '#!/bin/bash' so the script can carry the full
+    R-010 preamble -- errtrace, inherit_errexit and shift_verbose do not
+    exist in POSIX sh. grub-mkconfig executes this file, so the interpreter
+    is a free choice.
+
+    The 'echo' and 'read' calls in here are GRUB script inside quoted printf
+    payloads, emitted into grub.cfg -- not shell commands this script runs --
+    hence the allow-echo waiver rather than a rewrite.
+
+    SC2250 braces. Sandbox-tested: output and exit code identical to the
+    pre-change script.
+
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit ea2703c007d3b08c60a3099c8d1dc4ea882cab7d
+Author: claude (dev163 38f9745c-aed1-4fb4-b6ae-9899f20f8de2) <noreply@anthropic.com>
+Date:   Wed Aug 5 13:12:04 2026 -0400
+
+    gpl_download_sources: R-010 strict + nounset-safe option defaults
+
+    Strict mode exposed a real abort here. DIST_APTGETOPT and
+    apt_unattended_opts are supplied by the derivative-maker build
+    environment and are unset when the script runs on its own, so under
+    nounset the first apt-get call dies with
+    'apt_unattended_opts: unbound variable' (verified: exit 1). Default both
+    before first use.
+
+    Also: echo -> printf for the error banner (R-034/R-031), braces on "${i}",
+    an explicit SC2086 waiver on the deliberately word-split option list, and
+    'trap error_handler ERR' instead of the quoted form.
+
+    Sandbox-tested against the pre-change script under a stub PATH: every
+    traced command and the exit code are identical, the only delta being the
+    two new defaulting lines.
+
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit 9ca0244cda5240d0f018c342118ae57080cbc704
+Author: claude (dev163 38f9745c-aed1-4fb4-b6ae-9899f20f8de2) <noreply@anthropic.com>
+Date:   Wed Aug 5 13:11:45 2026 -0400
+
+    usability-misc: R-010 strict mode across the standalone scripts
+
+    Add the full strict preamble (converting bare 'set -e' where present) to
+    the twelve standalone scripts, plus the debt the gate surfaces on the
+    whole file: SC2250 braces, R-034 echo -> printf, R-090 command -v -> has.
+
+    Notable per file:
+    - has-pci-usb-controller: source has.sh and use 'has' (R-090). The
+      package already Depends on helper-scripts and another file in it
+      already sources from there.
+    - flameshot.dist, ip_unpriv, iptables-save-deterministic: carry an
+      'allow-exec' waiver -- all three are transparent wrappers whose caller
+      needs the child's own exit code, signals and stdio.
+    - flameshot.dist also carries 'no-has': it needs the RESOLVED path as an
+      argument to the dynamic linker, not a yes/no answer.
+    - check-dist-installer-cli: 'no-has' too. It runs at package build time,
+      where helper-scripts is deliberately not a build dependency.
+
+    Differentially tested in the sandbox, old vs new, identical inputs under
+    a stub PATH: 14 of 15 byte-identical in output and exit code.
+
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit 3be6ae30acbaec60a0213fec62a093966b4e577e
+Merge: 4489cb1 70f05ac
+Author: assisted-by-ai (Bot Account) (Machine Account) <228987186+assisted-by-ai@users.noreply.github.com>
+Date:   Sat Aug 1 05:02:09 2026 -0400
+
+    Merge pull request #19 from org-ai-assisted/ai
+
+    builds: report the installer's exit code, not the condition's
+
+commit 4489cb1b3f672541d6ca0caf7842f9500bfed7e1
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sat Aug 1 08:13:38 2026 +0000
+
+    bumped changelog version
+
 commit 881e7bb18ebbb10c4708972142600f8452e06c03
 Merge: 8a91817 0fba6b2
 Author: Patrick Schleizer <adrelanos@whonix.org>
 Date:   Fri Jul 31 13:18:05 2026 -0400
 
     Merge remote-tracking branch 'refs/remotes/org-ai-assisted/master'
+
+commit 70f05ac15a8baab7477f828e33f977be6da4f947
+Author: claude (dev142 b93fb2c6-e15f-4d45-8566-f3ded893b70e) <noreply@anthropic.com>
+Date:   Fri Jul 31 12:58:37 2026 -0400
+
+    add CodeQL consumer workflows (actions, python)
+
+    - Replaces GitHub default-setup CodeQL (web-UI state, no file
+      representation) with the org's file-based consumer wrappers.
+    - Byte-identical copies of
+      developer-meta-files/consumer-templates/.github/workflows/.
+    - No .github/dm-consumer.yml needed: consumer-codeql-actions.yml
+      passes no dm-consumer-section, and codeql-python's section is
+      optional (ci/dm-consumer-load.sh soft-skips when absent).
+    - queries stays the reusable's default security-and-quality,
+      a superset of the security-extended suite default setup used.
+
+    Generated with assistance from Claude Code.
+
+commit 8965d12f110f96432a1777e200e4bebe31482ced
+Author: claude (dev142 b93fb2c6-e15f-4d45-8566-f3ded893b70e) <noreply@anthropic.com>
+Date:   Fri Jul 31 10:46:07 2026 -0400
+
+    builds: report the installer's exit code, not the condition's
+
+    - The "back to default repository" step captures the installer status in
+      `ec`, then in the else branch runs `exit $?`. At that point `$?` is the
+      status of the `if` condition that just failed, not `ec`, so a real
+      installer failure was reported as 1.
+    - No false green: `$?` is always non-zero there. The cost is diagnostic --
+      the code that says WHICH installer failure occurred was discarded.
+    - `exit "${ec}"` instead.
+
+    Regression test: ci/exit-code-propagation-test.sh extracts the step's real
+    `run:` body from builds.yml and executes it with a stubbed installer exiting
+    42, so it exercises the shipped text rather than a copy. Verified in the
+    sandbox VM: FAIL (exited 1) on the pre-fix workflow, PASS (42) on the fix.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
 
 commit 0fba6b24d6c9ba6579fb941562215a03f1ca4961
 Merge: 8a91817 3546899
