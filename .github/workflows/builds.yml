@@ -5,6 +5,9 @@ on:
         paths:
             - 'usr/share/usability-misc/dist-installer-cli-standalone'
             - '.github/workflows/builds.yml'
+            ## The workflow's steps now live in ci/ scripts; a change to one must
+            ## trigger the workflow, or broken CI logic could merge untested.
+            - 'ci/**'
     workflow_dispatch:
 
 permissions:
@@ -15,14 +18,11 @@ concurrency:
     cancel-in-progress: true
 
 jobs:
-    ## No 'changes:' job: the workflow's own 'on.push.paths:' filter
-    ## already gates execution to commits that touch the installer
-    ## standalone OR this workflow file. A separate dorny/paths-filter
-    ## job to re-check the same paths was redundant - and was the root
-    ## cause of the long-running 'startup_failure' on this workflow
-    ## (the repo's Actions allowlist permits github-owned + verified
-    ## creators but blocked dorny/paths-filter, which made the workflow
-    ## refuse to start before any job ran).
+    ## No 'changes:' job: the workflow's own 'on.push.paths:' filter already
+    ## gates execution to commits touching the installer standalone OR this
+    ## workflow file, so a dorny/paths-filter job would be redundant. It would
+    ## also fail to start: the repo's Actions allowlist permits only
+    ## github-owned + verified creators, and dorny/paths-filter is neither.
 
     build:
         ## CI runs only where we enabled it. Unset variable -> the job is
@@ -64,98 +64,13 @@ jobs:
               with:
                   persist-credentials: false
             - name: System Basic Packages
-              run: |
-                  if command -v apt-get; then
-                    apt-get update --error-on=any
-                    ## Installer aborts if package upgrades are pending.
-                    apt-get dist-upgrade --yes
-                    apt-get install --yes shellcheck sudo adduser tor locales
-                  elif command -v dnf; then
-                    dnf upgrade --assumeyes
-                    dnf install --assumeyes ShellCheck sudo tor systemd gawk
-                    ## Debugging.
-                    dnf provides needs-restarting
-                  else
-                    exit 1
-                  fi
-                  ## TODO: test
-                  sed -i "s/^# \(ru_RU.UTF-8 UTF-8\)$/\1/" /etc/locale.gen || true
-                  ## TODO: Probably missing package on Fedora.
-                  locale-gen || true
+              run: ./ci/system-basic-packages.sh
             - name: System information
-              run: |
-                  cat /etc/os-release
-                  sep="--------------------"
-                  printf '%s\n' "${sep}"
-                  uname -a
-                  printf '%s\n' "${sep}"
-                  echo "${PATH}"
-                  printf '%s\n' "${sep}"
-                  localedef --list-archive
-                  printf '%s\n' "${sep}"
-                  locale
-                  printf '%s\n' "${sep}"
-                  if command -v apt-get >/dev/null; then
-                    for f in \
-                      /etc/apt/sources.list \
-                      /etc/apt/sources.list.d/*.list \
-                      /etc/apt/sources.list.d/*.sources
-                    do
-                      test -f "${f}" || continue
-                      printf '%s\n%s\n%s\n' "### ${f} ###" "$(cat "$f")" "${sep}"
-                    done
-                  elif command -v dnf >/dev/null; then
-                    for f in \
-                      /etc/yum.repos.d/*.repo
-                    do
-                      test -f "${f}" || continue
-                      printf '%s\n%s\n%s\n' "### ${f} ###" "$(cat "$f")" "${sep}"
-                    done
-                  fi
-                  printf '%s\n' "${sep}"
-                  #cat /etc/sudoers
-                  #ls /etc/sudoers.d
+              run: ./ci/system-information.sh
             - name: Enable Services
-              run: |
-                  if command -v apt-get; then
-                    service tor start
-                    service tor status
-                  elif command -v dnf; then
-                    #cat /etc/tor/torrc || true
-
-                    ## Manual start without systemd.
-                    # sudo -u toranon tor -f /etc/tor/torrc --RunAsDaemon 1
-                    # sleep 3
-                    # ps aux | grep tor
-
-                    ## 'service' not available on Fedora.
-                    #service tor start || true
-                    #service tor status || true
-
-                    /lib/systemd/systemd --system || true
-                    /usr/sbin/init || true
-
-                    ## systemd installation in this way does not work. Error message:
-                    ## System has not been booted with systemd as init system (PID 1). Can't operate.
-                    systemctl enable --now tor || true
-                    systemctl start tor || true
-                    systemctl status tor || true
-                  fi
+              run: ./ci/enable-services.sh
             - name: Normal user with sudo privileges
-              run: |
-                  if test -f /etc/debian_version; then
-                    ## Debian trixie needs "--comment".
-                    ## Older Debian versions need "--gecos".
-                    adduser --comment "" --disabled-password user || adduser --gecos "" --disabled-password user
-                    usermod -aG sudo user
-                    echo "%sudo ALL=(ALL) NOPASSWD: ALL" | tee /etc/sudoers.d/user
-                  elif test -f /etc/fedora-release; then
-                    adduser user
-                    usermod -aG wheel user
-                    echo "%wheel ALL=(ALL) NOPASSWD: ALL" | tee /etc/sudoers.d/user
-                  else
-                    exit 1
-                  fi
+              run: ./ci/normal-user-with-sudo.sh
 
             - name: Run default dist-installer-cli - Clearnet
               run: sudo -u user -- usr/share/usability-misc/dist-installer-cli-standalone --non-interactive --log-level=debug --no-boot --dev --ci
@@ -179,19 +94,10 @@ jobs:
                   fi
 
             - name: Run VirtualBox Installer - back to default repository
-              run: |
-                  sudo -u user -- usr/share/usability-misc/dist-installer-cli-standalone --non-interactive --log-level=debug --no-boot --dev --ci --virtualbox-only || {
-                    ec="$?"
-                    if grep -iq -e "debian" -e "buntu" -e "mint" /etc/os-release && test "$ec" = "108"; then
-                      printf '%s\n' "Expected error as --oracle-repo is not specified"
-                      apt-get remove -y 'virtualbox*'
-                      sudo -u user -- usr/share/usability-misc/dist-installer-cli-standalone --non-interactive --log-level=debug --no-boot --dev --ci --virtualbox-only
-                    else
-                      ## "$?" here is the status of the `if` condition, which has
-                      ## just failed. Report the installer's own exit code.
-                      exit "${ec}"
-                    fi
-                  }
+              ## Extracted to a real script so it can be linted and regression-
+              ## tested (dist-ai: dist-installer-cli-tests) instead of living as
+              ## un-testable YAML-embedded bash. Single source of truth.
+              run: ./ci/vbox-back-to-default-repo.sh
             - name: Run VirtualBox Installer - back to default repository - Clearnet
               run: sudo -u user -- usr/share/usability-misc/dist-installer-cli-standalone --non-interactive --log-level=debug --no-boot --dev --ci --virtualbox-only --onion
             - name: Run with non-English locale - Clearnet
