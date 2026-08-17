@@ -1,3 +1,22 @@
+commit faed8de324cd4eee9fb0501f3d8daae5f88c796b
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Mon Aug 17 00:49:34 2026 -0400
+
+    lintian
+
+commit dd267b071c586b15487f6a1cb3d9c427c5155680
+Merge: 81f2d90 698b3fc
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Mon Aug 17 00:48:16 2026 -0400
+
+    Merge remote-tracking branch 'org-ai-assisted/ai'
+
+commit 81f2d904acde3eaba31179ccc22da75e0c116158
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Mon Aug 17 04:29:20 2026 +0000
+
+    bumped changelog version
+
 commit d526d1736e64ae9be1a6484394da14c95b0c7675
 Author: Patrick Schleizer <adrelanos@whonix.org>
 Date:   Sat Aug 15 10:43:37 2026 -0400
@@ -16,6 +35,46 @@ Author: Patrick Schleizer <adrelanos@whonix.org>
 Date:   Sat Aug 15 10:36:46 2026 -0400
 
     Merge remote-tracking branch 'ArrayBolt3/arraybolt3/trixie'
+
+commit 698b3fcb08030191ec65dd02f767303fc93b569d
+Author: claude (reviewdrain3 c644ca26-d5a3-4c61-8df9-968ddbd026e1) <noreply@anthropic.com>
+Date:   Thu Aug 13 05:57:30 2026 -0400
+
+    ci/system-basic-packages: set up ru_RU.UTF-8 on Fedora, fail loud
+
+    - the ru_RU.UTF-8 setup used Debian's locale-gen workflow (sed on
+      /etc/locale.gen + locale-gen) for BOTH images, both masked by '|| true';
+      Fedora has no such workflow, so the DNF image silently ran the
+      locale-dependent tests with no ru_RU.UTF-8 at all.
+    - dnf branch: install glibc-langpack-ru, which ships the locale.
+    - apt branch: keep the Debian workflow but drop '|| true' so a failure aborts.
+    - post-check: assert ru_RU.UTF-8 is present or exit 1, on either image --
+      the in-matrix regression guard that the silent '|| true' removed.
+
+commit 049baa9115ec1f529d079fda8cc31eb5eea772a3
+Author: claude (dev202 622465d6-ca4a-4333-810d-5235541c7800) <noreply@anthropic.com>
+Date:   Thu Aug 13 01:58:39 2026 -0400
+
+    ci: trigger builds.yml on ci/ changes
+
+    - the workflow's steps now live in ci/*.sh; add ci/** to on.push.paths so a
+      commit changing only an extracted script actually runs the workflow (else
+      broken CI setup logic could merge untested)
+
+commit d03429ade54e3a832a82a55163c4c34477358955
+Author: claude (dev202 622465d6-ca4a-4333-810d-5235541c7800) <noreply@anthropic.com>
+Date:   Thu Aug 13 01:33:45 2026 -0400
+
+    ci: extract inline workflow shell to lintable, testable scripts
+
+    - back-to-default-repo step -> ci/vbox-back-to-default-repo.sh (single source
+      of truth; regression-tested by dist-ai's dist-installer-cli-tests)
+    - drop ci/workflow-step-extract.py (a YAML-parsing extractor) and the orphaned
+      ci/exit-code-propagation-test.sh; the test is offloaded to dist-ai
+    - extract the remaining inline `run:` blocks (R-100) into ci/ scripts:
+      system-basic-packages, system-information, enable-services,
+      normal-user-with-sudo -- each strict-mode + style-clean
+    - no-has waiver on the bare-container scripts (helper-scripts absent there)
 
 commit 461aa8d231a5ab17d74dd41968e363c9bb6f378c
 Author: Aaron Rainbolt <arraybolt3@gmail.com>
