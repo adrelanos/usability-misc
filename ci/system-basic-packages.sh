@@ -41,7 +41,7 @@ fi
 ## Fail LOUDLY if the locale the tests need is absent, on either image. The old
 ## code masked both distro paths behind '|| true', so Fedora silently ran the
 ## locale-dependent tests with no ru_RU.UTF-8 at all.
-if ! locale -a | grep --quiet --ignore-case --extended-regexp '^ru_RU\.utf-?8$'; then
+if ! locale -a | grep --ignore-case --extended-regexp '^ru_RU\.utf-?8$' >/dev/null; then
    printf '%s\n' 'ERROR: ru_RU.UTF-8 locale not available after setup' >&2
    exit 1
 fi
