@@ -84,12 +84,12 @@ jobs:
 
             - name: Run VirtualBox Installer - Oracle repository - Clearnet
               run: |
-                  if ! grep -iq "kali" /etc/os-release; then
+                  if ! grep --ignore-case --quiet "kali" /etc/os-release; then
                     sudo -u user -- usr/share/usability-misc/dist-installer-cli-standalone --non-interactive --log-level=debug --no-boot --dev --ci --virtualbox-only --oracle-repo
                   fi
             - name: Run VirtualBox Installer - Oracle repository - Onion
               run: |
-                  if ! grep -iq "kali" /etc/os-release; then
+                  if ! grep --ignore-case --quiet "kali" /etc/os-release; then
                     sudo -u user -- usr/share/usability-misc/dist-installer-cli-standalone --non-interactive --log-level=debug --no-boot --dev --ci --virtualbox-only --oracle-repo --onion
                   fi
 
