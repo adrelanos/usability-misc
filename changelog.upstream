@@ -1,3 +1,31 @@
+commit da28b95b759e4d3b78275ea45f62787dada77ff2
+Merge: 2aa621a babfdd4
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Tue Aug 18 11:26:48 2026 -0400
+
+    Merge remote-tracking branch 'org-ai-assisted/ai'
+
+commit babfdd43e6ed8433e601953757ee4e40a01cd88a
+Author: claude (dev225 2870d279-db91-4375-b016-e625d2dec9b6) <noreply@anthropic.com>
+Date:   Tue Aug 18 01:13:21 2026 -0400
+
+    ci: fix grep quiet-flag style violations (R-161)
+
+    - system-basic-packages.sh: 'locale -a | grep --quiet ...' exits at the
+      first match, SIGPIPEs the producer, and under 'set -o pipefail' fails
+      the pipeline (141). Drop --quiet and redirect grep's stdout instead.
+    - vbox-back-to-default-repo.sh: 'grep -iq -e ...' uses short options ->
+      long form (--ignore-case --quiet --regexp).
+    - builds.yml: 'grep -iq' -> '--ignore-case --quiet'.
+
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+commit 2aa621ac198fc62c76769e9259511651a5438d1f
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Mon Aug 17 04:51:15 2026 +0000
+
+    bumped changelog version
+
 commit faed8de324cd4eee9fb0501f3d8daae5f88c796b
 Author: Patrick Schleizer <adrelanos@whonix.org>
 Date:   Mon Aug 17 00:49:34 2026 -0400
